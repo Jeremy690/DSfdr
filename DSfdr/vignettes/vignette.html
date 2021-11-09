@@ -13,7 +13,7 @@
 
 
 
-<title>vignette</title>
+<title>DSfdr: False Discovery Rate Control via Data Splitting</title>
 
 
 
@@ -300,11 +300,57 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 
 
-<h1 class="title toc-ignore">vignette</h1>
+<h1 class="title toc-ignore">DSfdr: False Discovery Rate Control via Data Splitting</h1>
 
 
 
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">library</span>(DSfdr)</a></code></pre></div>
+<p>In this vignette wi weill show you how to use functions in ‘DSfdr’ package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">library</span>(DSfdr)</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"><span class="kw">library</span>(glmnet)</a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="co">#&gt; Warning: package 'glmnet' was built under R version 3.6.2</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"><span class="co">#&gt; Loading required package: Matrix</span></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5"><span class="co">#&gt; Warning: package 'Matrix' was built under R version 3.6.2</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6"><span class="co">#&gt; Loaded glmnet 4.1-1</span></a>
+<a class="sourceLine" id="cb1-7" data-line-number="7"><span class="kw">library</span>(MASS)</a></code></pre></div>
+<div id="example-linear-regression" class="section level2">
+<h2>Example: Linear Regression</h2>
+<p>We first consider linear regression model, which also serves as the stepping stone for variable selection in Gaussian graphical model.</p>
+<p>The following code generates data using generate_data() function. The generate_data() function simulates the response vector <span class="math inline">\(y_{n\times 1}\)</span> from the linear model <span class="math inline">\(y_{n\times 1} = X_{n\times p}\beta^\star_{p\times 1} + \epsilon_{n\times 1}\)</span> with <span class="math inline">\(\epsilon_{n\times 1}\sim N(0, I_n)\)</span>, and randomly locate the signal index set <span class="math inline">\(S_1\)</span>. For <span class="math inline">\(j\in S_1\)</span>, we sample <span class="math inline">\(\beta^\star_j\)</span> from <span class="math inline">\(N(0, \delta\sqrt{\log p/n})\)</span>.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co"># Sample from a linear model</span></a>
+<a class="sourceLine" id="cb2-2" data-line-number="2"><span class="co"># n - number of samples</span></a>
+<a class="sourceLine" id="cb2-3" data-line-number="3"><span class="co"># p - number of variables</span></a>
+<a class="sourceLine" id="cb2-4" data-line-number="4"><span class="co"># p0 - number of signals</span></a>
+<a class="sourceLine" id="cb2-5" data-line-number="5"><span class="co"># delta - signal index</span></a>
+<a class="sourceLine" id="cb2-6" data-line-number="6"><span class="co"># Sigma - covariance matrix for the design matrix.</span></a>
+<a class="sourceLine" id="cb2-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb2-8" data-line-number="8">n =<span class="st"> </span><span class="dv">500</span></a>
+<a class="sourceLine" id="cb2-9" data-line-number="9">p =<span class="st"> </span><span class="dv">1000</span></a>
+<a class="sourceLine" id="cb2-10" data-line-number="10">p0 =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb2-11" data-line-number="11">delta =<span class="st"> </span><span class="dv">3</span></a>
+<a class="sourceLine" id="cb2-12" data-line-number="12">Sigma =<span class="st"> </span><span class="kw">diag</span>(<span class="dv">1</span>, p)</a>
+<a class="sourceLine" id="cb2-13" data-line-number="13">data =<span class="st"> </span><span class="kw">generate_data</span>(n, p, p0, Sigma, delta)</a>
+<a class="sourceLine" id="cb2-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb2-15" data-line-number="15">X =<span class="st"> </span>data<span class="op">$</span>X</a>
+<a class="sourceLine" id="cb2-16" data-line-number="16">Y =<span class="st"> </span>data<span class="op">$</span>y</a>
+<a class="sourceLine" id="cb2-17" data-line-number="17">signal_index =<span class="st"> </span>data<span class="op">$</span>signal_index</a></code></pre></div>
+<p>Then we use our DS() function to select the varaibles with FDR under control. DS() function return a list containing selected features by DS and MDS.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="co"># Using DS function to select variables</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2"><span class="co"># num_split - Repeated number of DS procedure for MDS</span></a>
+<a class="sourceLine" id="cb3-3" data-line-number="3"><span class="co"># q - FDR control level</span></a>
+<a class="sourceLine" id="cb3-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb3-5" data-line-number="5">num_split =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">q =<span class="st"> </span><span class="fl">0.1</span></a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">selection =<span class="st"> </span><span class="kw">DS</span>(X, Y, num_split, q)</a>
+<a class="sourceLine" id="cb3-8" data-line-number="8">DS_selected =<span class="st"> </span>selection<span class="op">$</span>DS_feature</a>
+<a class="sourceLine" id="cb3-9" data-line-number="9">MDS_selected =<span class="st"> </span>selection<span class="op">$</span>MDS_feature</a></code></pre></div>
+<p>In simulation, since we know the true signal indexes, after we select the variables, we use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" data-line-number="1">DS_result =<span class="st"> </span><span class="kw">fdp_power</span>(DS_selected, signal_index)</a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">MDS_result =<span class="st"> </span><span class="kw">fdp_power</span>(MDS_selected, signal_index)</a>
+<a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">c</span>(DS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>fdp)</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4"><span class="co">#&gt; [1] 1 1</span></a>
+<a class="sourceLine" id="cb4-5" data-line-number="5"><span class="kw">c</span>(DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>power)</a>
+<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="co">#&gt; [1] NaN NaN</span></a></code></pre></div>
+</div>
 
 
 

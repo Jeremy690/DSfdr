@@ -1,5 +1,5 @@
 ---
-title: "vignette"
+title: "DSfdr: False Discovery Rate Control via Data Splitting"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{vignette}
@@ -14,6 +14,60 @@ knitr::opts_chunk$set(
 )
 ```
 
+In this vignette wi weill show you how to use functions in 'DSfdr' package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.
+
 ```{r setup}
 library(DSfdr)
+library(glmnet)
+library(MASS)
 ```
+
+## Example: Linear Regression
+
+We first consider linear regression model, which also serves as the stepping stone for variable selection in Gaussian graphical model.
+
+The following code generates data using generate_data() function. The generate_data() function simulates the response vector $y_{n\times 1}$ from the linear model $y_{n\times 1} = X_{n\times p}\beta^\star_{p\times 1} + \epsilon_{n\times 1}$ with $\epsilon_{n\times 1}\sim N(0, I_n)$, and
+ randomly locate the signal index set $S_1$. For $j\in S_1$, we sample $\beta^\star_j$ from $N(0, \delta\sqrt{\log p/n})$.
+```{r}
+# Sample from a linear model
+# n - number of samples
+# p - number of variables
+# p0 - number of signals
+# delta - signal index
+# Sigma - covariance matrix for the design matrix.
+
+n = 500
+p = 1000
+p0 = 50
+delta = 3
+Sigma = diag(1, p)
+data = generate_data(n, p, p0, Sigma, delta)
+
+X = data$X
+Y = data$y
+signal_index = data$signal_index
+```
+
+Then we use our DS() function to select the varaibles with FDR under control. DS() function return a list containing selected features by DS and MDS.
+ 
+```{r}
+# Using DS function to select variables
+# num_split - Repeated number of DS procedure for MDS
+# q - FDR control level
+
+num_split = 50
+q = 0.1
+selection = DS(X, Y, num_split, q)
+DS_selected = selection$DS_feature
+MDS_selected = selection$MDS_feature
+```
+
+In simulation, since we know the true signal indexes, after we select the variables, we use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.
+
+```{r}
+DS_result = fdp_power(DS_selected, signal_index)
+MDS_result = fdp_power(MDS_selected, signal_index)
+c(DS_result$fdp, MDS_result$fdp)
+c(DS_result$power, MDS_result$power)
+```
+

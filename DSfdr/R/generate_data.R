@@ -29,5 +29,5 @@ generate_data <- function(n, p, p0, covariance, delta){
   X <- mvrnorm(n, mu = rep(0, p), Sigma = covariance)
   y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
 
-  return(list(X = X, y = y, signal_index))
+  return(list(X = X, y = y, signal_index = signal_index))
 }
