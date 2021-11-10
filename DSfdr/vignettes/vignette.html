@@ -311,11 +311,15 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb1-4" data-line-number="4"><span class="co">#&gt; Loading required package: Matrix</span></a>
 <a class="sourceLine" id="cb1-5" data-line-number="5"><span class="co">#&gt; Warning: package 'Matrix' was built under R version 3.6.2</span></a>
 <a class="sourceLine" id="cb1-6" data-line-number="6"><span class="co">#&gt; Loaded glmnet 4.1-1</span></a>
-<a class="sourceLine" id="cb1-7" data-line-number="7"><span class="kw">library</span>(MASS)</a></code></pre></div>
+<a class="sourceLine" id="cb1-7" data-line-number="7"><span class="kw">library</span>(MASS)</a>
+<a class="sourceLine" id="cb1-8" data-line-number="8"><span class="kw">library</span>(doParallel)</a>
+<a class="sourceLine" id="cb1-9" data-line-number="9"><span class="co">#&gt; Loading required package: foreach</span></a>
+<a class="sourceLine" id="cb1-10" data-line-number="10"><span class="co">#&gt; Loading required package: iterators</span></a>
+<a class="sourceLine" id="cb1-11" data-line-number="11"><span class="co">#&gt; Loading required package: parallel</span></a></code></pre></div>
 <div id="example-linear-regression" class="section level2">
-<h2>Example: Linear Regression</h2>
+<h2>Example: Linear regression</h2>
 <p>We first consider linear regression model, which also serves as the stepping stone for variable selection in Gaussian graphical model.</p>
-<p>The following code generates data using generate_data() function. The generate_data() function simulates the response vector <span class="math inline">\(y_{n\times 1}\)</span> from the linear model <span class="math inline">\(y_{n\times 1} = X_{n\times p}\beta^\star_{p\times 1} + \epsilon_{n\times 1}\)</span> with <span class="math inline">\(\epsilon_{n\times 1}\sim N(0, I_n)\)</span>, and randomly locate the signal index set <span class="math inline">\(S_1\)</span>. For <span class="math inline">\(j\in S_1\)</span>, we sample <span class="math inline">\(\beta^\star_j\)</span> from <span class="math inline">\(N(0, \delta\sqrt{\log p/n})\)</span>.</p>
+<p>The following code generates data using generate_data() function. The generate_data() function simulates the response vector <span class="math inline">\(\mathbf y_{n\times 1}\)</span> from the linear model <span class="math inline">\(\mathbf y_{n\times 1} = \mathbf X_{n\times p}\mathbf\beta^\star_{p\times 1} + \mathbf\epsilon_{n\times 1}\)</span> with <span class="math inline">\(\mathbf\epsilon_{n\times 1}\sim N(\mathbf 0, I_n)\)</span>, and randomly locate the signal index set <span class="math inline">\(S_1\)</span>. For <span class="math inline">\(j\in S_1\)</span>, we sample <span class="math inline">\(\beta^\star_j\)</span> from <span class="math inline">\(N(0, \delta\sqrt{\log p/n})\)</span>.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co"># Sample from a linear model</span></a>
 <a class="sourceLine" id="cb2-2" data-line-number="2"><span class="co"># n - number of samples</span></a>
 <a class="sourceLine" id="cb2-3" data-line-number="3"><span class="co"># p - number of variables</span></a>
@@ -347,9 +351,143 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" data-line-number="1">DS_result =<span class="st"> </span><span class="kw">fdp_power</span>(DS_selected, signal_index)</a>
 <a class="sourceLine" id="cb4-2" data-line-number="2">MDS_result =<span class="st"> </span><span class="kw">fdp_power</span>(MDS_selected, signal_index)</a>
 <a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">c</span>(DS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>fdp)</a>
-<a class="sourceLine" id="cb4-4" data-line-number="4"><span class="co">#&gt; [1] 1 1</span></a>
+<a class="sourceLine" id="cb4-4" data-line-number="4"><span class="co">#&gt; [1] 0.03703704 0.08333333</span></a>
 <a class="sourceLine" id="cb4-5" data-line-number="5"><span class="kw">c</span>(DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>power)</a>
-<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="co">#&gt; [1] NaN NaN</span></a></code></pre></div>
+<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="co">#&gt; [1] 0.52 0.66</span></a></code></pre></div>
+<p>We then repeat the above procedure several times. Use doParallel package to make the computation faster.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="co"># trials - number of replications</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"><span class="co"># Register the cluster</span></a>
+<a class="sourceLine" id="cb5-3" data-line-number="3">cl =<span class="st"> </span><span class="kw">makeCluster</span>(<span class="dv">4</span>)</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4"><span class="kw">registerDoParallel</span>(cl)</a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">trials =<span class="st"> </span><span class="dv">4</span></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">r &lt;-<span class="st"> </span><span class="kw">foreach</span>(<span class="kw">icount</span>(trials), <span class="dt">.combine=</span>cbind) <span class="op">%dopar%</span><span class="st"> </span>{</a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">  <span class="kw">library</span>(DSfdr)</a>
+<a class="sourceLine" id="cb5-8" data-line-number="8">  <span class="kw">library</span>(glmnet)</a>
+<a class="sourceLine" id="cb5-9" data-line-number="9">  <span class="kw">library</span>(MASS)</a>
+<a class="sourceLine" id="cb5-10" data-line-number="10">  <span class="co"># generate data</span></a>
+<a class="sourceLine" id="cb5-11" data-line-number="11">  n =<span class="st"> </span><span class="dv">500</span></a>
+<a class="sourceLine" id="cb5-12" data-line-number="12">  p =<span class="st"> </span><span class="dv">1000</span></a>
+<a class="sourceLine" id="cb5-13" data-line-number="13">  p0 =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb5-14" data-line-number="14">  delta =<span class="st"> </span><span class="dv">3</span></a>
+<a class="sourceLine" id="cb5-15" data-line-number="15">  Sigma =<span class="st"> </span><span class="kw">diag</span>(<span class="dv">1</span>, p)</a>
+<a class="sourceLine" id="cb5-16" data-line-number="16">  data =<span class="st"> </span><span class="kw">generate_data</span>(n, p, p0, Sigma, delta)</a>
+<a class="sourceLine" id="cb5-17" data-line-number="17">  X =<span class="st"> </span>data<span class="op">$</span>X</a>
+<a class="sourceLine" id="cb5-18" data-line-number="18">  Y =<span class="st"> </span>data<span class="op">$</span>y</a>
+<a class="sourceLine" id="cb5-19" data-line-number="19">  signal_index =<span class="st"> </span>data<span class="op">$</span>signal_index</a>
+<a class="sourceLine" id="cb5-20" data-line-number="20">  <span class="co"># Select variables</span></a>
+<a class="sourceLine" id="cb5-21" data-line-number="21">  num_split =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb5-22" data-line-number="22">  q =<span class="st"> </span><span class="fl">0.1</span></a>
+<a class="sourceLine" id="cb5-23" data-line-number="23">  selection =<span class="st"> </span><span class="kw">DS</span>(X, Y, num_split, q)</a>
+<a class="sourceLine" id="cb5-24" data-line-number="24">  DS_selected =<span class="st"> </span>selection<span class="op">$</span>DS_feature</a>
+<a class="sourceLine" id="cb5-25" data-line-number="25">  MDS_selected =<span class="st"> </span>selection<span class="op">$</span>MDS_feature</a>
+<a class="sourceLine" id="cb5-26" data-line-number="26">  <span class="co"># REcord the performance</span></a>
+<a class="sourceLine" id="cb5-27" data-line-number="27">  DS_result =<span class="st"> </span><span class="kw">fdp_power</span>(DS_selected, signal_index)</a>
+<a class="sourceLine" id="cb5-28" data-line-number="28">  MDS_result =<span class="st"> </span><span class="kw">fdp_power</span>(MDS_selected, signal_index)</a>
+<a class="sourceLine" id="cb5-29" data-line-number="29">  <span class="kw">c</span>(DS_result<span class="op">$</span>fdp, DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>power)</a>
+<a class="sourceLine" id="cb5-30" data-line-number="30">}</a>
+<a class="sourceLine" id="cb5-31" data-line-number="31"><span class="kw">stopCluster</span>(cl)</a>
+<a class="sourceLine" id="cb5-32" data-line-number="32">DS_mean_fdp =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">1</span>]</a>
+<a class="sourceLine" id="cb5-33" data-line-number="33">MDS_mean_fdp =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">3</span>]</a>
+<a class="sourceLine" id="cb5-34" data-line-number="34">DS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">2</span>]</a>
+<a class="sourceLine" id="cb5-35" data-line-number="35">MDS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">4</span>]</a>
+<a class="sourceLine" id="cb5-36" data-line-number="36"><span class="kw">c</span>(DS_mean_fdp, MDS_mean_fdp)</a>
+<a class="sourceLine" id="cb5-37" data-line-number="37"><span class="co">#&gt; [1] 0.12225377 0.06024706</span></a>
+<a class="sourceLine" id="cb5-38" data-line-number="38"><span class="kw">c</span>(DS_mean_power, MDS_mean_power)</a>
+<a class="sourceLine" id="cb5-39" data-line-number="39"><span class="co">#&gt; [1] 0.54 0.62</span></a></code></pre></div>
+</div>
+<div id="example-gaussian-graphical-model" class="section level2">
+<h2>Example: Gaussian graphical model</h2>
+<p>Suppose <span class="math inline">\(\mathbf X = (X_1,\ldots, X_p)\)</span> follows a p-dimensional multivariate Normal dsitribution <span class="math inline">\(N(\mathbf 0, \Sigma)\)</span>. Let <span class="math inline">\(\Lambda = \Sigma^{-1} = (\lambda_{ij})\)</span> be the precision matrix. <span class="math inline">\(\lambda_{ij} = 0\)</span> is equivalent to <span class="math inline">\(X_i\)</span> and <span class="math inline">\(X_j\)</span> are independent given the rest of the variables. The estimation of <span class="math inline">\(\lambda_{ij}\)</span> can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see <a href="https://arxiv.org/pdf/2002.08542.pdf" class="uri">https://arxiv.org/pdf/2002.08542.pdf</a></p>
+<p>We give an example of banded graph to demonstrate our methods. For which the precision matrix <span class="math inline">\(\Lambda\)</span> satisfies that <span class="math inline">\(\lambda_{jj} = 1\)</span>, <span class="math inline">\(\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}\)</span> if <span class="math inline">\(0 &lt; |i - j| \leq s\)</span>, and <span class="math inline">\(\lambda_{ij} = 0\)</span> if <span class="math inline">\(|i - j| &gt; s\)</span>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="co"># generate data</span></a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"><span class="co"># rho - bandwidth of the banded precision matrix</span></a>
+<a class="sourceLine" id="cb6-3" data-line-number="3"><span class="co"># a and c defined as above</span></a>
+<a class="sourceLine" id="cb6-4" data-line-number="4"><span class="co"># edge_set - binary matrix indicating the existence of the edge.</span></a>
+<a class="sourceLine" id="cb6-5" data-line-number="5"><span class="co"># precision - true precision matrix</span></a>
+<a class="sourceLine" id="cb6-6" data-line-number="6">n =<span class="st"> </span><span class="dv">300</span>; p =<span class="st"> </span><span class="dv">50</span>; rho =<span class="st"> </span><span class="dv">8</span>; a =<span class="st"> </span><span class="fl">-0.6</span>; c =<span class="st"> </span><span class="fl">1.5</span></a>
+<a class="sourceLine" id="cb6-7" data-line-number="7">q =<span class="st"> </span><span class="fl">0.2</span></a>
+<a class="sourceLine" id="cb6-8" data-line-number="8">num_split =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb6-9" data-line-number="9">precision =<span class="st"> </span><span class="kw">matrix</span>(<span class="dv">0</span>, <span class="dt">nrow =</span> p, <span class="dt">ncol =</span> p)</a>
+<a class="sourceLine" id="cb6-10" data-line-number="10">edges_set =<span class="st"> </span><span class="kw">matrix</span>(<span class="dv">0</span>, <span class="dt">nrow =</span> p, <span class="dt">ncol =</span> p)</a>
+<a class="sourceLine" id="cb6-11" data-line-number="11"><span class="co">### Construct banded graph</span></a>
+<a class="sourceLine" id="cb6-12" data-line-number="12"><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span>p){</a>
+<a class="sourceLine" id="cb6-13" data-line-number="13"> <span class="cf">for</span>(j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span>p){</a>
+<a class="sourceLine" id="cb6-14" data-line-number="14">   <span class="cf">if</span>(i <span class="op">==</span><span class="st"> </span>j){</a>
+<a class="sourceLine" id="cb6-15" data-line-number="15">     precision[i, j] &lt;-<span class="st"> </span><span class="dv">1</span></a>
+<a class="sourceLine" id="cb6-16" data-line-number="16">   }</a>
+<a class="sourceLine" id="cb6-17" data-line-number="17">   <span class="cf">if</span>(i <span class="op">!=</span><span class="st"> </span>j <span class="op">&amp;</span><span class="st"> </span><span class="kw">abs</span>(i <span class="op">-</span><span class="st"> </span>j) <span class="op">&lt;=</span><span class="st"> </span>rho){</a>
+<a class="sourceLine" id="cb6-18" data-line-number="18">     precision[i, j] &lt;-<span class="st"> </span><span class="kw">sign</span>(a)<span class="op">*</span><span class="kw">abs</span>(a)<span class="op">^</span>(<span class="kw">abs</span>(i <span class="op">-</span><span class="st"> </span>j)<span class="op">/</span>c)</a>
+<a class="sourceLine" id="cb6-19" data-line-number="19">     edges_set[i, j] &lt;-<span class="st"> </span><span class="dv">1</span></a>
+<a class="sourceLine" id="cb6-20" data-line-number="20">   }</a>
+<a class="sourceLine" id="cb6-21" data-line-number="21">  }</a>
+<a class="sourceLine" id="cb6-22" data-line-number="22">}</a>
+<a class="sourceLine" id="cb6-23" data-line-number="23"><span class="co">### Make precision matrix positive definite</span></a>
+<a class="sourceLine" id="cb6-24" data-line-number="24">min_eigen =<span class="st"> </span><span class="kw">min</span>(<span class="kw">eigen</span>(precision)<span class="op">$</span>values)</a>
+<a class="sourceLine" id="cb6-25" data-line-number="25"><span class="cf">if</span>(min_eigen <span class="op">&lt;</span><span class="st"> </span><span class="dv">0</span>){<span class="kw">diag</span>(precision) &lt;-<span class="st"> </span><span class="kw">diag</span>(precision) <span class="op">+</span><span class="st"> </span><span class="kw">abs</span>(min_eigen) <span class="op">+</span><span class="st"> </span><span class="fl">0.005</span>}</a>
+<a class="sourceLine" id="cb6-26" data-line-number="26"><span class="co">### Generate data</span></a>
+<a class="sourceLine" id="cb6-27" data-line-number="27">data &lt;-<span class="st"> </span><span class="kw">mvrnorm</span>(n, <span class="dt">mu =</span> <span class="kw">rep</span>(<span class="dv">0</span>,p), <span class="dt">Sigma =</span> <span class="kw">solve</span>(precision))</a></code></pre></div>
+<p>Then we use DS_graph() function to select edges in the graph abd evaluate our performance using fdp_power_graph() function. DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="co">### Select edges.</span></a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">selected =<span class="st"> </span><span class="kw">DS_graph</span>(data, q, num_split)</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">DS_selected =<span class="st"> </span>selected<span class="op">$</span>DS_selected_edge</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">MDS_selected =<span class="st"> </span>selected<span class="op">$</span>MDS_selected_edge</a>
+<a class="sourceLine" id="cb7-5" data-line-number="5"><span class="co">### Evaluate the performance</span></a>
+<a class="sourceLine" id="cb7-6" data-line-number="6">DS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(DS_selected, edges_set)</a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">MDS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(MDS_selected, edges_set)</a>
+<a class="sourceLine" id="cb7-8" data-line-number="8"><span class="kw">c</span>(DS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>fdp)</a>
+<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="co">#&gt; [1] 0.2075472 0.2343750</span></a>
+<a class="sourceLine" id="cb7-10" data-line-number="10"><span class="kw">c</span>(DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>power)</a>
+<a class="sourceLine" id="cb7-11" data-line-number="11"><span class="co">#&gt; [1] 0.4615385 0.5384615</span></a></code></pre></div>
+<p>We can also repeat the above procedure several times and see the average performance.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb8-1" data-line-number="1">cl =<span class="st"> </span><span class="kw">makeCluster</span>(<span class="dv">4</span>)</a>
+<a class="sourceLine" id="cb8-2" data-line-number="2"><span class="kw">registerDoParallel</span>(cl)</a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="co"># We set trials = 4 to reduce the computational time.</span></a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">trials =<span class="st"> </span><span class="dv">4</span></a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">r &lt;-<span class="st"> </span><span class="kw">foreach</span>(<span class="kw">icount</span>(trials), <span class="dt">.combine=</span>cbind) <span class="op">%dopar%</span><span class="st"> </span>{</a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">  <span class="kw">library</span>(DSfdr)</a>
+<a class="sourceLine" id="cb8-7" data-line-number="7">  <span class="kw">library</span>(glmnet)</a>
+<a class="sourceLine" id="cb8-8" data-line-number="8">  <span class="kw">library</span>(MASS)</a>
+<a class="sourceLine" id="cb8-9" data-line-number="9">  <span class="co"># We set n = 200, p = 30 to reduce the computational time.</span></a>
+<a class="sourceLine" id="cb8-10" data-line-number="10">  n =<span class="st"> </span><span class="dv">200</span>; p =<span class="st"> </span><span class="dv">30</span>; rho =<span class="st"> </span><span class="dv">8</span>; a =<span class="st"> </span><span class="fl">-0.6</span>; c =<span class="st"> </span><span class="fl">1.5</span></a>
+<a class="sourceLine" id="cb8-11" data-line-number="11">  q =<span class="st"> </span><span class="fl">0.2</span></a>
+<a class="sourceLine" id="cb8-12" data-line-number="12">  num_split =<span class="st"> </span><span class="dv">50</span></a>
+<a class="sourceLine" id="cb8-13" data-line-number="13">  precision =<span class="st"> </span><span class="kw">matrix</span>(<span class="dv">0</span>, <span class="dt">nrow =</span> p, <span class="dt">ncol =</span> p)</a>
+<a class="sourceLine" id="cb8-14" data-line-number="14">  edges_set =<span class="st"> </span><span class="kw">matrix</span>(<span class="dv">0</span>, <span class="dt">nrow =</span> p, <span class="dt">ncol =</span> p)</a>
+<a class="sourceLine" id="cb8-15" data-line-number="15">  <span class="co">### Construct banded graph</span></a>
+<a class="sourceLine" id="cb8-16" data-line-number="16">  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span>p){</a>
+<a class="sourceLine" id="cb8-17" data-line-number="17">   <span class="cf">for</span>(j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span>p){</a>
+<a class="sourceLine" id="cb8-18" data-line-number="18">     <span class="cf">if</span>(i <span class="op">==</span><span class="st"> </span>j){</a>
+<a class="sourceLine" id="cb8-19" data-line-number="19">       precision[i, j] &lt;-<span class="st"> </span><span class="dv">1</span></a>
+<a class="sourceLine" id="cb8-20" data-line-number="20">     }</a>
+<a class="sourceLine" id="cb8-21" data-line-number="21">     <span class="cf">if</span>(i <span class="op">!=</span><span class="st"> </span>j <span class="op">&amp;</span><span class="st"> </span><span class="kw">abs</span>(i <span class="op">-</span><span class="st"> </span>j) <span class="op">&lt;=</span><span class="st"> </span>rho){</a>
+<a class="sourceLine" id="cb8-22" data-line-number="22">       precision[i, j] &lt;-<span class="st"> </span><span class="kw">sign</span>(a)<span class="op">*</span><span class="kw">abs</span>(a)<span class="op">^</span>(<span class="kw">abs</span>(i <span class="op">-</span><span class="st"> </span>j)<span class="op">/</span>c)</a>
+<a class="sourceLine" id="cb8-23" data-line-number="23">       edges_set[i, j] &lt;-<span class="st"> </span><span class="dv">1</span></a>
+<a class="sourceLine" id="cb8-24" data-line-number="24">     }</a>
+<a class="sourceLine" id="cb8-25" data-line-number="25">    }</a>
+<a class="sourceLine" id="cb8-26" data-line-number="26">  }</a>
+<a class="sourceLine" id="cb8-27" data-line-number="27">  <span class="co">### Make precision matrix positive definite</span></a>
+<a class="sourceLine" id="cb8-28" data-line-number="28">  min_eigen =<span class="st"> </span><span class="kw">min</span>(<span class="kw">eigen</span>(precision)<span class="op">$</span>values)</a>
+<a class="sourceLine" id="cb8-29" data-line-number="29">  <span class="cf">if</span>(min_eigen <span class="op">&lt;</span><span class="st"> </span><span class="dv">0</span>){<span class="kw">diag</span>(precision) &lt;-<span class="st"> </span><span class="kw">diag</span>(precision) <span class="op">+</span><span class="st"> </span><span class="kw">abs</span>(min_eigen) <span class="op">+</span><span class="st"> </span><span class="fl">0.005</span>}</a>
+<a class="sourceLine" id="cb8-30" data-line-number="30">  <span class="co">### Generate data</span></a>
+<a class="sourceLine" id="cb8-31" data-line-number="31">  data &lt;-<span class="st"> </span><span class="kw">mvrnorm</span>(n, <span class="dt">mu =</span> <span class="kw">rep</span>(<span class="dv">0</span>,p), <span class="dt">Sigma =</span> <span class="kw">solve</span>(precision))</a>
+<a class="sourceLine" id="cb8-32" data-line-number="32">  <span class="co">### Select edges.</span></a>
+<a class="sourceLine" id="cb8-33" data-line-number="33">  selected =<span class="st"> </span><span class="kw">DS_graph</span>(data, q, num_split)</a>
+<a class="sourceLine" id="cb8-34" data-line-number="34">  DS_selected =<span class="st"> </span>selected<span class="op">$</span>DS_selected_edge</a>
+<a class="sourceLine" id="cb8-35" data-line-number="35">  MDS_selected =<span class="st"> </span>selected<span class="op">$</span>MDS_selected_edge</a>
+<a class="sourceLine" id="cb8-36" data-line-number="36">  <span class="co">### Evaluate the performance</span></a>
+<a class="sourceLine" id="cb8-37" data-line-number="37">  DS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(DS_selected, edges_set)</a>
+<a class="sourceLine" id="cb8-38" data-line-number="38">  MDS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(MDS_selected, edges_set)</a>
+<a class="sourceLine" id="cb8-39" data-line-number="39">  <span class="kw">c</span>(DS_result<span class="op">$</span>fdp, DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>power)</a>
+<a class="sourceLine" id="cb8-40" data-line-number="40">}</a>
+<a class="sourceLine" id="cb8-41" data-line-number="41"><span class="kw">stopCluster</span>(cl)</a>
+<a class="sourceLine" id="cb8-42" data-line-number="42">DS_mean_fdp =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">1</span>]</a>
+<a class="sourceLine" id="cb8-43" data-line-number="43">MDS_mean_fdp =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">3</span>]</a>
+<a class="sourceLine" id="cb8-44" data-line-number="44">DS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">2</span>]</a>
+<a class="sourceLine" id="cb8-45" data-line-number="45">MDS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">4</span>]</a>
+<a class="sourceLine" id="cb8-46" data-line-number="46"><span class="kw">c</span>(DS_mean_fdp, MDS_mean_fdp)</a>
+<a class="sourceLine" id="cb8-47" data-line-number="47"><span class="co">#&gt; [1] 0.1546973 0.1623943</span></a>
+<a class="sourceLine" id="cb8-48" data-line-number="48"><span class="kw">c</span>(DS_mean_power, MDS_mean_power)</a>
+<a class="sourceLine" id="cb8-49" data-line-number="49"><span class="co">#&gt; [1] 0.4031863 0.4926471</span></a></code></pre></div>
 </div>
 
 

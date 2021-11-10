@@ -10,14 +10,13 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  eval = FALSE
+  comment = "#>"
 )
 ```
 
 In this vignette wi weill show you how to use functions in 'DSfdr' package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.
 
-```{r setup, eval = TRUE}
+```{r setup}
 library(DSfdr)
 library(glmnet)
 library(MASS)
@@ -74,7 +73,7 @@ c(DS_result$power, MDS_result$power)
 ```
 
 We then repeat the above procedure several times. Use doParallel package to make the computation faster.
-```{r, eval = FALSE}
+```{r}
 # trials - number of replications
 # Register the cluster
 cl = makeCluster(4)
@@ -121,7 +120,7 @@ Suppose $\mathbf X = (X_1,\ldots, X_p)$ follows a p-dimensional multivariate Nor
 
 We give an example of banded graph to demonstrate our methods. For which the precision matrix $\Lambda$ satisfies that $\lambda_{jj} = 1$, $\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}$ if $0 < |i - j| \leq s$, and $\lambda_{ij} = 0$ if $|i - j| > s$.
 
-```{r, eval = TRUE}
+```{r}
 # generate data
 # rho - bandwidth of the banded precision matrix
 # a and c defined as above
