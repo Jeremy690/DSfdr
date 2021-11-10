@@ -10,23 +10,25 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE
 )
 ```
 
 In this vignette wi weill show you how to use functions in 'DSfdr' package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.
 
-```{r setup}
+```{r setup, eval = TRUE}
 library(DSfdr)
 library(glmnet)
 library(MASS)
+library(doParallel)
 ```
 
-## Example: Linear Regression
+## Example: Linear regression
 
 We first consider linear regression model, which also serves as the stepping stone for variable selection in Gaussian graphical model.
 
-The following code generates data using generate_data() function. The generate_data() function simulates the response vector $y_{n\times 1}$ from the linear model $y_{n\times 1} = X_{n\times p}\beta^\star_{p\times 1} + \epsilon_{n\times 1}$ with $\epsilon_{n\times 1}\sim N(0, I_n)$, and
+The following code generates data using generate_data() function. The generate_data() function simulates the response vector $\mathbf y_{n\times 1}$ from the linear model $\mathbf y_{n\times 1} = \mathbf X_{n\times p}\mathbf\beta^\star_{p\times 1} + \mathbf\epsilon_{n\times 1}$ with $\mathbf\epsilon_{n\times 1}\sim N(\mathbf 0, I_n)$, and
  randomly locate the signal index set $S_1$. For $j\in S_1$, we sample $\beta^\star_j$ from $N(0, \delta\sqrt{\log p/n})$.
 ```{r}
 # Sample from a linear model
@@ -70,4 +72,151 @@ MDS_result = fdp_power(MDS_selected, signal_index)
 c(DS_result$fdp, MDS_result$fdp)
 c(DS_result$power, MDS_result$power)
 ```
+
+We then repeat the above procedure several times. Use doParallel package to make the computation faster.
+```{r, eval = FALSE}
+# trials - number of replications
+# Register the cluster
+cl = makeCluster(4)
+registerDoParallel(cl)
+trials = 4
+r <- foreach(icount(trials), .combine=cbind) %dopar% {
+  library(DSfdr)
+  library(glmnet)
+  library(MASS)
+  # generate data
+  n = 500
+  p = 1000
+  p0 = 50
+  delta = 3
+  Sigma = diag(1, p)
+  data = generate_data(n, p, p0, Sigma, delta)
+  X = data$X
+  Y = data$y
+  signal_index = data$signal_index
+  # Select variables
+  num_split = 50
+  q = 0.1
+  selection = DS(X, Y, num_split, q)
+  DS_selected = selection$DS_feature
+  MDS_selected = selection$MDS_feature
+  # REcord the performance
+  DS_result = fdp_power(DS_selected, signal_index)
+  MDS_result = fdp_power(MDS_selected, signal_index)
+  c(DS_result$fdp, DS_result$power, MDS_result$fdp, MDS_result$power)
+}
+stopCluster(cl)
+DS_mean_fdp = rowMeans(r)[1]
+MDS_mean_fdp = rowMeans(r)[3]
+DS_mean_power = rowMeans(r)[2]
+MDS_mean_power = rowMeans(r)[4]
+c(DS_mean_fdp, MDS_mean_fdp)
+c(DS_mean_power, MDS_mean_power)
+
+```
+
+## Example: Gaussian  graphical model
+
+Suppose $\mathbf X = (X_1,\ldots, X_p)$ follows a p-dimensional multivariate Normal dsitribution $N(\mathbf 0, \Sigma)$. Let $\Lambda = \Sigma^{-1} = (\lambda_{ij})$ be the precision matrix. $\lambda_{ij} = 0$ is equivalent to $X_i$ and $X_j$ are independent given the rest of the variables. The estimation of $\lambda_{ij}$ can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see https://arxiv.org/pdf/2002.08542.pdf
+
+We give an example of banded graph to demonstrate our methods. For which the precision matrix $\Lambda$ satisfies that $\lambda_{jj} = 1$, $\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}$ if $0 < |i - j| \leq s$, and $\lambda_{ij} = 0$ if $|i - j| > s$.
+
+```{r, eval = TRUE}
+# generate data
+# rho - bandwidth of the banded precision matrix
+# a and c defined as above
+# edge_set - binary matrix indicating the existence of the edge.
+# precision - true precision matrix
+n = 300; p = 50; rho = 8; a = -0.6; c = 1.5
+q = 0.2
+num_split = 50
+precision = matrix(0, nrow = p, ncol = p)
+edges_set = matrix(0, nrow = p, ncol = p)
+### Construct banded graph
+for(i in 1:p){
+ for(j in 1:p){
+   if(i == j){
+     precision[i, j] <- 1
+   }
+   if(i != j & abs(i - j) <= rho){
+     precision[i, j] <- sign(a)*abs(a)^(abs(i - j)/c)
+     edges_set[i, j] <- 1
+   }
+  }
+}
+### Make precision matrix positive definite
+min_eigen = min(eigen(precision)$values)
+if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
+### Generate data
+data <- mvrnorm(n, mu = rep(0,p), Sigma = solve(precision))
+```
+
+Then we use DS_graph() function to select edges in the graph abd evaluate our performance using fdp_power_graph() function.  DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.
+
+```{r}
+### Select edges.
+selected = DS_graph(data, q, num_split)
+DS_selected = selected$DS_selected_edge
+MDS_selected = selected$MDS_selected_edge
+### Evaluate the performance
+DS_result = fdp_power_graph(DS_selected, edges_set)
+MDS_result = fdp_power_graph(MDS_selected, edges_set)
+c(DS_result$fdp, MDS_result$fdp)
+c(DS_result$power, MDS_result$power)
+```
+
+We can also repeat the above procedure several times and see the average performance.
+
+```{r}
+cl = makeCluster(4)
+registerDoParallel(cl)
+trials = 4
+r <- foreach(icount(trials), .combine=cbind) %dopar% {
+  library(DSfdr)
+  library(glmnet)
+  library(MASS)
+  n = 300; p = 50; rho = 8; a = -0.6; c = 1.5
+  q = 0.2
+  num_split = 50
+  precision = matrix(0, nrow = p, ncol = p)
+  edges_set = matrix(0, nrow = p, ncol = p)
+  ### Construct banded graph
+  for(i in 1:p){
+   for(j in 1:p){
+     if(i == j){
+       precision[i, j] <- 1
+     }
+     if(i != j & abs(i - j) <= rho){
+       precision[i, j] <- sign(a)*abs(a)^(abs(i - j)/c)
+       edges_set[i, j] <- 1
+     }
+    }
+  }
+  ### Make precision matrix positive definite
+  min_eigen = min(eigen(precision)$values)
+  if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
+  ### Generate data
+  data <- mvrnorm(n, mu = rep(0,p), Sigma = solve(precision))
+  ### Select edges.
+  selected = DS_graph(data, q, num_split)
+  DS_selected = selected$DS_selected_edge
+  MDS_selected = selected$MDS_selected_edge
+  ### Evaluate the performance
+  DS_result = fdp_power_graph(DS_selected, edges_set)
+  MDS_result = fdp_power_graph(MDS_selected, edges_set)
+  c(DS_result$fdp, DS_result$power, MDS_result$fdp, MDS_result$power)
+}
+stopCluster(cl)
+DS_mean_fdp = rowMeans(r)[1]
+MDS_mean_fdp = rowMeans(r)[3]
+DS_mean_power = rowMeans(r)[2]
+MDS_mean_power = rowMeans(r)[4]
+c(DS_mean_fdp, MDS_mean_fdp)
+c(DS_mean_power, MDS_mean_power)
+```
+
+
+
+
+
 

@@ -46,6 +46,8 @@
 
 ### nodewise data-splitting procedure
 DS_graph <- function(data, q, num_split){
+  n = dim(data)[1]
+  p = dim(data)[2]
   DS_selected_edge  <- matrix(0, nrow = p, ncol = p)
   MDS_selected_edge <- matrix(0, nrow = p, ncol = p)
 
