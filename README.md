@@ -24,3 +24,6 @@ devtools::install_github("LinBuyu/DSfdr", build_vignettes = TRUE)
 The vignettes takes approximately 5 mins to knit.
 
 
+## Feedback
+
+If you encounter error or would like to provide feedback, please use [Github -> Issues](https://github.com/zq00/glmhd/issues) to reach us. Thank you! 
