@@ -10,6 +10,7 @@
 fdp_power_graph <- function(selected_edge, true_edge){
   num_false_discoveries <- 0
   num_selected_edge <- 0
+  p = dim(true_edge)[1]
   for(i in 1:(p - 1)){
     for(j in (i + 1):p){
       if(selected_edge[i, j] == 1 | selected_edge[j, i] == 1){
