@@ -4,6 +4,6 @@ This R package selects variables in linear regression and Gaussian graphical mod
 
 ## Running examples
 -You can find package **vignette** in the vignettes fold
--You can read more details of our methods in [here]{https://arxiv.org/pdf/2002.08542.pdf}
+-You can read more details of our methods in {https://arxiv.org/pdf/2002.08542.pdf}
 
 ## Installation
