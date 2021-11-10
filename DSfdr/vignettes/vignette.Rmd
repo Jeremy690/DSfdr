@@ -170,12 +170,14 @@ We can also repeat the above procedure several times and see the average perform
 ```{r}
 cl = makeCluster(4)
 registerDoParallel(cl)
+# We set trials = 4 to reduce the computational time.
 trials = 4
 r <- foreach(icount(trials), .combine=cbind) %dopar% {
   library(DSfdr)
   library(glmnet)
   library(MASS)
-  n = 300; p = 50; rho = 8; a = -0.6; c = 1.5
+  # We set n = 200, p = 30 to reduce the computational time.
+  n = 200; p = 30; rho = 8; a = -0.6; c = 1.5
   q = 0.2
   num_split = 50
   precision = matrix(0, nrow = p, ncol = p)
