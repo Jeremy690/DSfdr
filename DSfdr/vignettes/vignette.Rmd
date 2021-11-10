@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In this vignette wi weill show you how to use functions in 'DSfdr' package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.
+In this vignette we will show you how to use functions in 'DSfdr' package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.
 
 ```{r setup}
 library(DSfdr)
@@ -49,7 +49,7 @@ Y = data$y
 signal_index = data$signal_index
 ```
 
-Then we use our DS() function to select the varaibles with FDR under control. DS() function return a list containing selected features by DS and MDS.
+Then we use our DS() function to select the varaibles. DS() function returns a list containing selected features by DS and MDS.
  
 ```{r}
 # Using DS function to select variables
@@ -63,7 +63,7 @@ DS_selected = selection$DS_feature
 MDS_selected = selection$MDS_feature
 ```
 
-In simulation, since we know the true signal indexes, after we select the variables, we use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.
+Since we know the true signal indexes in simulation, after we select the variables, we can use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.
 
 ```{r}
 DS_result = fdp_power(DS_selected, signal_index)
@@ -118,7 +118,7 @@ c(DS_mean_power, MDS_mean_power)
 
 Suppose $\mathbf X = (X_1,\ldots, X_p)$ follows a p-dimensional multivariate Normal dsitribution $N(\mathbf 0, \Sigma)$. Let $\Lambda = \Sigma^{-1} = (\lambda_{ij})$ be the precision matrix. $\lambda_{ij} = 0$ is equivalent to $X_i$ and $X_j$ are independent given the rest of the variables. The estimation of $\lambda_{ij}$ can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see https://arxiv.org/pdf/2002.08542.pdf
 
-We give an example of banded graph to demonstrate our methods. For which the precision matrix $\Lambda$ satisfies that $\lambda_{jj} = 1$, $\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}$ if $0 < |i - j| \leq s$, and $\lambda_{ij} = 0$ if $|i - j| > s$.
+We give an example of banded graph to demonstrate our methods, in which the precision matrix $\Lambda$ satisfies that $\lambda_{jj} = 1$, $\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}$ if $0 < |i - j| \leq s$, and $\lambda_{ij} = 0$ if $|i - j| > s$.
 
 ```{r}
 # generate data
@@ -150,7 +150,7 @@ if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
 data <- mvrnorm(n, mu = rep(0,p), Sigma = solve(precision))
 ```
 
-Then we use DS_graph() function to select edges in the graph abd evaluate our performance using fdp_power_graph() function.  DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.
+Then we use DS_graph() function to select edges in the graph and evaluate our performance using fdp_power_graph() function.  DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.
 
 ```{r}
 ### Select edges.
@@ -169,13 +169,13 @@ We can also repeat the above procedure several times and see the average perform
 ```{r}
 cl = makeCluster(4)
 registerDoParallel(cl)
-# We set trials = 4 to reduce the computational time.
+### We set trials = 4 to reduce the computational time.
 trials = 4
 r <- foreach(icount(trials), .combine=cbind) %dopar% {
   library(DSfdr)
   library(glmnet)
   library(MASS)
-  # We set n = 200, p = 30 to reduce the computational time.
+  ### We set n = 200, p = 30 to reduce the computational time.
   n = 200; p = 30; rho = 8; a = -0.6; c = 1.5
   q = 0.2
   num_split = 50

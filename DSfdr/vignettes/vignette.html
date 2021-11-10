@@ -304,7 +304,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 
 
-<p>In this vignette wi weill show you how to use functions in ‘DSfdr’ package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.</p>
+<p>In this vignette we will show you how to use functions in ‘DSfdr’ package to select variables in linear regression and graphical model estimation problems while maintain the FDR under control.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">library</span>(DSfdr)</a>
 <a class="sourceLine" id="cb1-2" data-line-number="2"><span class="kw">library</span>(glmnet)</a>
 <a class="sourceLine" id="cb1-3" data-line-number="3"><span class="co">#&gt; Warning: package 'glmnet' was built under R version 3.6.2</span></a>
@@ -337,7 +337,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb2-15" data-line-number="15">X =<span class="st"> </span>data<span class="op">$</span>X</a>
 <a class="sourceLine" id="cb2-16" data-line-number="16">Y =<span class="st"> </span>data<span class="op">$</span>y</a>
 <a class="sourceLine" id="cb2-17" data-line-number="17">signal_index =<span class="st"> </span>data<span class="op">$</span>signal_index</a></code></pre></div>
-<p>Then we use our DS() function to select the varaibles with FDR under control. DS() function return a list containing selected features by DS and MDS.</p>
+<p>Then we use our DS() function to select the varaibles. DS() function returns a list containing selected features by DS and MDS.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="co"># Using DS function to select variables</span></a>
 <a class="sourceLine" id="cb3-2" data-line-number="2"><span class="co"># num_split - Repeated number of DS procedure for MDS</span></a>
 <a class="sourceLine" id="cb3-3" data-line-number="3"><span class="co"># q - FDR control level</span></a>
@@ -347,13 +347,13 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb3-7" data-line-number="7">selection =<span class="st"> </span><span class="kw">DS</span>(X, Y, num_split, q)</a>
 <a class="sourceLine" id="cb3-8" data-line-number="8">DS_selected =<span class="st"> </span>selection<span class="op">$</span>DS_feature</a>
 <a class="sourceLine" id="cb3-9" data-line-number="9">MDS_selected =<span class="st"> </span>selection<span class="op">$</span>MDS_feature</a></code></pre></div>
-<p>In simulation, since we know the true signal indexes, after we select the variables, we use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.</p>
+<p>Since we know the true signal indexes in simulation, after we select the variables, we can use fdp_power() function to test the performance of DS and MDS procedure. fdp_power() function returns a list containing fdp and power.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" data-line-number="1">DS_result =<span class="st"> </span><span class="kw">fdp_power</span>(DS_selected, signal_index)</a>
 <a class="sourceLine" id="cb4-2" data-line-number="2">MDS_result =<span class="st"> </span><span class="kw">fdp_power</span>(MDS_selected, signal_index)</a>
 <a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">c</span>(DS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>fdp)</a>
-<a class="sourceLine" id="cb4-4" data-line-number="4"><span class="co">#&gt; [1] 0.03703704 0.08333333</span></a>
+<a class="sourceLine" id="cb4-4" data-line-number="4"><span class="co">#&gt; [1] 0 0</span></a>
 <a class="sourceLine" id="cb4-5" data-line-number="5"><span class="kw">c</span>(DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>power)</a>
-<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="co">#&gt; [1] 0.52 0.66</span></a></code></pre></div>
+<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="co">#&gt; [1] 0.5 0.6</span></a></code></pre></div>
 <p>We then repeat the above procedure several times. Use doParallel package to make the computation faster.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="co"># trials - number of replications</span></a>
 <a class="sourceLine" id="cb5-2" data-line-number="2"><span class="co"># Register the cluster</span></a>
@@ -391,14 +391,14 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb5-34" data-line-number="34">DS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">2</span>]</a>
 <a class="sourceLine" id="cb5-35" data-line-number="35">MDS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">4</span>]</a>
 <a class="sourceLine" id="cb5-36" data-line-number="36"><span class="kw">c</span>(DS_mean_fdp, MDS_mean_fdp)</a>
-<a class="sourceLine" id="cb5-37" data-line-number="37"><span class="co">#&gt; [1] 0.12225377 0.06024706</span></a>
+<a class="sourceLine" id="cb5-37" data-line-number="37"><span class="co">#&gt; [1] 0.15696293 0.01393189</span></a>
 <a class="sourceLine" id="cb5-38" data-line-number="38"><span class="kw">c</span>(DS_mean_power, MDS_mean_power)</a>
-<a class="sourceLine" id="cb5-39" data-line-number="39"><span class="co">#&gt; [1] 0.54 0.62</span></a></code></pre></div>
+<a class="sourceLine" id="cb5-39" data-line-number="39"><span class="co">#&gt; [1] 0.605 0.645</span></a></code></pre></div>
 </div>
 <div id="example-gaussian-graphical-model" class="section level2">
 <h2>Example: Gaussian graphical model</h2>
 <p>Suppose <span class="math inline">\(\mathbf X = (X_1,\ldots, X_p)\)</span> follows a p-dimensional multivariate Normal dsitribution <span class="math inline">\(N(\mathbf 0, \Sigma)\)</span>. Let <span class="math inline">\(\Lambda = \Sigma^{-1} = (\lambda_{ij})\)</span> be the precision matrix. <span class="math inline">\(\lambda_{ij} = 0\)</span> is equivalent to <span class="math inline">\(X_i\)</span> and <span class="math inline">\(X_j\)</span> are independent given the rest of the variables. The estimation of <span class="math inline">\(\lambda_{ij}\)</span> can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see <a href="https://arxiv.org/pdf/2002.08542.pdf" class="uri">https://arxiv.org/pdf/2002.08542.pdf</a></p>
-<p>We give an example of banded graph to demonstrate our methods. For which the precision matrix <span class="math inline">\(\Lambda\)</span> satisfies that <span class="math inline">\(\lambda_{jj} = 1\)</span>, <span class="math inline">\(\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}\)</span> if <span class="math inline">\(0 &lt; |i - j| \leq s\)</span>, and <span class="math inline">\(\lambda_{ij} = 0\)</span> if <span class="math inline">\(|i - j| &gt; s\)</span>.</p>
+<p>We give an example of banded graph to demonstrate our methods, in which the precision matrix <span class="math inline">\(\Lambda\)</span> satisfies that <span class="math inline">\(\lambda_{jj} = 1\)</span>, <span class="math inline">\(\lambda_{ij} = \text{sign}(a)\cdot|a|^{|i - j|/c}\)</span> if <span class="math inline">\(0 &lt; |i - j| \leq s\)</span>, and <span class="math inline">\(\lambda_{ij} = 0\)</span> if <span class="math inline">\(|i - j| &gt; s\)</span>.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="co"># generate data</span></a>
 <a class="sourceLine" id="cb6-2" data-line-number="2"><span class="co"># rho - bandwidth of the banded precision matrix</span></a>
 <a class="sourceLine" id="cb6-3" data-line-number="3"><span class="co"># a and c defined as above</span></a>
@@ -426,7 +426,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb6-25" data-line-number="25"><span class="cf">if</span>(min_eigen <span class="op">&lt;</span><span class="st"> </span><span class="dv">0</span>){<span class="kw">diag</span>(precision) &lt;-<span class="st"> </span><span class="kw">diag</span>(precision) <span class="op">+</span><span class="st"> </span><span class="kw">abs</span>(min_eigen) <span class="op">+</span><span class="st"> </span><span class="fl">0.005</span>}</a>
 <a class="sourceLine" id="cb6-26" data-line-number="26"><span class="co">### Generate data</span></a>
 <a class="sourceLine" id="cb6-27" data-line-number="27">data &lt;-<span class="st"> </span><span class="kw">mvrnorm</span>(n, <span class="dt">mu =</span> <span class="kw">rep</span>(<span class="dv">0</span>,p), <span class="dt">Sigma =</span> <span class="kw">solve</span>(precision))</a></code></pre></div>
-<p>Then we use DS_graph() function to select edges in the graph abd evaluate our performance using fdp_power_graph() function. DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.</p>
+<p>Then we use DS_graph() function to select edges in the graph and evaluate our performance using fdp_power_graph() function. DS_graph() returns a list containing selected edges selected by DS and MDS. fdp_power_graph() returns a list containing fdp and power.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="co">### Select edges.</span></a>
 <a class="sourceLine" id="cb7-2" data-line-number="2">selected =<span class="st"> </span><span class="kw">DS_graph</span>(data, q, num_split)</a>
 <a class="sourceLine" id="cb7-3" data-line-number="3">DS_selected =<span class="st"> </span>selected<span class="op">$</span>DS_selected_edge</a>
@@ -435,19 +435,19 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb7-6" data-line-number="6">DS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(DS_selected, edges_set)</a>
 <a class="sourceLine" id="cb7-7" data-line-number="7">MDS_result =<span class="st"> </span><span class="kw">fdp_power_graph</span>(MDS_selected, edges_set)</a>
 <a class="sourceLine" id="cb7-8" data-line-number="8"><span class="kw">c</span>(DS_result<span class="op">$</span>fdp, MDS_result<span class="op">$</span>fdp)</a>
-<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="co">#&gt; [1] 0.2075472 0.2343750</span></a>
+<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="co">#&gt; [1] 0.1961722 0.1673820</span></a>
 <a class="sourceLine" id="cb7-10" data-line-number="10"><span class="kw">c</span>(DS_result<span class="op">$</span>power, MDS_result<span class="op">$</span>power)</a>
-<a class="sourceLine" id="cb7-11" data-line-number="11"><span class="co">#&gt; [1] 0.4615385 0.5384615</span></a></code></pre></div>
+<a class="sourceLine" id="cb7-11" data-line-number="11"><span class="co">#&gt; [1] 0.4615385 0.5329670</span></a></code></pre></div>
 <p>We can also repeat the above procedure several times and see the average performance.</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb8-1" data-line-number="1">cl =<span class="st"> </span><span class="kw">makeCluster</span>(<span class="dv">4</span>)</a>
 <a class="sourceLine" id="cb8-2" data-line-number="2"><span class="kw">registerDoParallel</span>(cl)</a>
-<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="co"># We set trials = 4 to reduce the computational time.</span></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="co">### We set trials = 4 to reduce the computational time.</span></a>
 <a class="sourceLine" id="cb8-4" data-line-number="4">trials =<span class="st"> </span><span class="dv">4</span></a>
 <a class="sourceLine" id="cb8-5" data-line-number="5">r &lt;-<span class="st"> </span><span class="kw">foreach</span>(<span class="kw">icount</span>(trials), <span class="dt">.combine=</span>cbind) <span class="op">%dopar%</span><span class="st"> </span>{</a>
 <a class="sourceLine" id="cb8-6" data-line-number="6">  <span class="kw">library</span>(DSfdr)</a>
 <a class="sourceLine" id="cb8-7" data-line-number="7">  <span class="kw">library</span>(glmnet)</a>
 <a class="sourceLine" id="cb8-8" data-line-number="8">  <span class="kw">library</span>(MASS)</a>
-<a class="sourceLine" id="cb8-9" data-line-number="9">  <span class="co"># We set n = 200, p = 30 to reduce the computational time.</span></a>
+<a class="sourceLine" id="cb8-9" data-line-number="9">  <span class="co">### We set n = 200, p = 30 to reduce the computational time.</span></a>
 <a class="sourceLine" id="cb8-10" data-line-number="10">  n =<span class="st"> </span><span class="dv">200</span>; p =<span class="st"> </span><span class="dv">30</span>; rho =<span class="st"> </span><span class="dv">8</span>; a =<span class="st"> </span><span class="fl">-0.6</span>; c =<span class="st"> </span><span class="fl">1.5</span></a>
 <a class="sourceLine" id="cb8-11" data-line-number="11">  q =<span class="st"> </span><span class="fl">0.2</span></a>
 <a class="sourceLine" id="cb8-12" data-line-number="12">  num_split =<span class="st"> </span><span class="dv">50</span></a>
@@ -485,9 +485,9 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb8-44" data-line-number="44">DS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">2</span>]</a>
 <a class="sourceLine" id="cb8-45" data-line-number="45">MDS_mean_power =<span class="st"> </span><span class="kw">rowMeans</span>(r)[<span class="dv">4</span>]</a>
 <a class="sourceLine" id="cb8-46" data-line-number="46"><span class="kw">c</span>(DS_mean_fdp, MDS_mean_fdp)</a>
-<a class="sourceLine" id="cb8-47" data-line-number="47"><span class="co">#&gt; [1] 0.1546973 0.1623943</span></a>
+<a class="sourceLine" id="cb8-47" data-line-number="47"><span class="co">#&gt; [1] 0.1695962 0.1563338</span></a>
 <a class="sourceLine" id="cb8-48" data-line-number="48"><span class="kw">c</span>(DS_mean_power, MDS_mean_power)</a>
-<a class="sourceLine" id="cb8-49" data-line-number="49"><span class="co">#&gt; [1] 0.4031863 0.4926471</span></a></code></pre></div>
+<a class="sourceLine" id="cb8-49" data-line-number="49"><span class="co">#&gt; [1] 0.4313725 0.4926471</span></a></code></pre></div>
 </div>
 
 
