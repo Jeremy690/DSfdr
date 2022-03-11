@@ -12,7 +12,7 @@ You can install the package using
 
 ```R
 install.packates('devtools')
-devtools::install_github("Jeremy690/DSfdr")
+devtools::install_github("Jeremy690/DSfdr/DSfdr")
 ```
 
 To install with vignettes, using 
