@@ -18,7 +18,7 @@ devtools::install_github("Jeremy690/DSfdr/DSfdr")
 To install with vignettes, using 
 
 ```R
-devtools::install_github("Jeremy690/DSfdr", build_vignettes = TRUE)
+devtools::install_github("Jeremy690/DSfdr/DSfdr", build_vignettes = TRUE)
 ```
 
 The vignettes takes approximately 5 mins to knit.
