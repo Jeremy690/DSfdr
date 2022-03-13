@@ -9,7 +9,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In this Rmarkdown file, we will show you how to reproduce our results for all figures in the paper. However, for most of the tasks, they are not feasible to run on a desktop machine, since each data point in the figure represents 200 independent replications and each replication takes several minutes to several hours to run depending on the dimension and the problem. Thus in this Rmarkdown file, we only provide the code with one single run.
+In this Rmarkdown file, we will show you how to reproduce our results for all figures in the main text of the paper. However, for most of the tasks, they are not feasible to run on a desktop machine, since each data point in the figure represents 200 independent replications and each replication takes several minutes to several hours to run depending on the dimension and the problem. Thus in this Rmarkdown file, we only provide the code with one single run.
 
 ## Setup
 ```{r setup}
@@ -19,11 +19,14 @@ library(knockoff)
 library(hdi)
 library(doParallel)
 library(mvtnorm)
+
+### Make sure to put knockoff.R and MBHq.R are in the same directory with the Rmd file and set your workspace in this directory.
+
 source('knockoff.R')
 source('MBHq.R')
 ```
 
-Some utilize function.
+Some utilize function. analys function is to select the relevant features using Algorithm 1 in the paper. fdp_power is to calculate the fdp and power based on the selected features.
 ```{r}
 ### select the relevant features using mirror statistics
 analys = function(mm, ww, q){
@@ -54,7 +57,7 @@ fdp_power <- function(selected_index, signal_index){
 
 ## Figure 2: MDS for the Normal means model.
 
-The following code show how to get the left hand side of Figure 2.
+The following code shows how to get the left hand side of Figure 2.
 ```{r, eval = FALSE}
 #### Data splitting for Gaussian mean problem
 nob <- 500
@@ -110,7 +113,7 @@ p2 = p2 + (inclusionrate[1] >= inclusionrate[2])
 data_save = list(DS_rank = p1, MDS_rank = p2)
 data_save
 ```
-Repeat the above step 500 times and the swap probability for DS and MDS equals to $p_1/500$ and $p_2/500$ respectively. Then we vary sample size from $50$ to $5000$, we get the left hand side of Figure 2. 
+Repeat the above step 500 times and the resulted swap probability for DS and MDS equals to $p_1/500$ and $p_2/500$ respectively. By varying sample size from $50$ to $5000$, we get the left hand side of Figure 2. 
 
 Then we show the code of the right hand side of Figure 2. We can run this code in 3 mins in a desktop machine.
 ```{r}
@@ -192,7 +195,10 @@ legend(0.072, 0.0061, legend = c("", "Mirror statistic"), bty='n', pt.cex = 2, c
 
 ## Figure 3: optimality
 
-The following code is the DS and MDS algorithm, for different choice of $f$, change the construction of M, we show the optimal one and leave the other two choices in the annotation. We will use this code for the further simulations.
+The following code is the code for our DS and MDS algorithm. For different choice of $f$, we just simply change the construction of M. Here we show the optimal one and leave the other two choices in the annotation. We will use this code for further simulations in linear regression.
+
+$\textbf{Run the following code before any other code for Figure 3-7.}$
+
 ```{r}
 DS <- function(X, y, num_split, q){
   n <- dim(X)[1]; p <- dim(X)[2]
@@ -305,7 +311,7 @@ data_save <- list(DS_fdr = DS_result$DS_fdr, DS_power = DS_result$DS_power,
                   MDS_fdr = DS_result$MDS_fdr, MDS_power = DS_result$MDS_power)
 data_save
 ```
-In the code we only show how to get the results for $f_3$, by changing the construction of the mirror statistics in DS function, we are able to get the results for the other two construction, i.e. $f_1$ and $f_2$. Then repeat the same procedure 200 times and vary the correlation $\rho$ and the signal $\delta$, we are able to get the Figure 3 in the graph.
+In this code we only show how to get the results for $f_3$, by changing the construction of the mirror statistics in DS function, we are able to get the results for the other two construction, i.e. $f_1$ and $f_2$. Then repeat the same procedure 200 times and vary the correlation $\rho$ and the signal $\delta$, we are able to get the Figure 3 in the graph.
 
 
 ## Figure 4: Effect on the number of splits.
@@ -351,11 +357,12 @@ data_save <- list(DS_fdr  = DS_result$DS_fdr,  DS_power  = DS_result$DS_power,
                   MDS_fdr = DS_result$MDS_fdr, MDS_power = DS_result$MDS_power)
 data_save
 ```
-The code is rather similar to the code for Figure 3, except here, we vary the number of DS replications ``num_split'' and fix other simualtion parameters.
+The code is rather similar to the code for Figure 3. We vary the number of DS replications ``num_split'' and fix other simualtion parameters.
 
 ## Figure 5-7: Linear regression
 
-In this chunck, we consider reproducing Figure 5,6,7. We focus on one data point of the Figure 5 and the rest of the figures are almost the same except for the data generating process, for which we will also include in the code.
+In this chunck, we consider reproducing Figure 5,6,7. We focus on one data point of the Figure 5 and the rest of the figures are almost the same. The data generating process are different across figures and we inlcude them in the annatation in the following code. For Figure 7, the real data design case, the data is available at
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE141834
 
 #### Generating data
 ```{r}
@@ -396,7 +403,8 @@ X <- mvrnorm(n, mu = rep(0, p), Sigma = covariance)
 #X  <- rbind(X1, X2)
 
 ### Generate X from the scRNA data in Figure 7.
-#data <- t(read.table("/n/home09/cdai/FDR/real_data/data/data.txt"))
+#fileloc = "your location of the data"
+#data <- t(read.table("fileloc"))
 ### Remove the columns with too small nonzero samples
 #freq <- colSums(data != 0)/nrow(data)
 #remove_index <- which(freq < 0.1)
@@ -436,75 +444,15 @@ data_save <- list(DS_fdr  = DS_result$DS_fdr,  DS_power  = DS_result$DS_power,
 data_save
 ```
 
-
-We then repeat the above procedure several times. Use doParallel package to make the computation faster.
-```{r, eval = False}
-# trials - number of replications
-# Register the cluster
-cl = makeCluster(4)
-registerDoParallel(cl)
-trials = 12
-r <- foreach(icount(trials), .combine=cbind) %dopar% {
-  library(DSfdr)
-  library(glmnet)
-  library(MASS)
-  # generate data
-  n = 800
-  p = 2000
-  p0 = 50
-  q <- 0.1
-  rho <- 0.5
-  delta = 5
-  
-  ### number of splits
-  num_split <- 50
-  
-  ### Set up the covariance matrix
-  sig1 <- toeplitz(seq(rho, 0, length.out = p/10))
-  covariance <- bdiag(rep(list(sig1), 10))
-  diag(covariance) <- rep(1, p)
-  X <- mvrnorm(n, mu = rep(0, p), Sigma = covariance)
-  ### randomly generate the true beta
-  beta_star <- rep(0, p)
-  signal_index <- sample(c(1:p), size = p0, replace = F)
-  beta_star[signal_index] <- rnorm(p0, mean = 0, sd = delta*sqrt(log(p)/n))
-  
-  ### generate y
-  y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
-  
-  selection = DS(X, y, num_split, q)
-  DS_selected = selection$DS_feature
-  MDS_selected = selection$MDS_feature
-  
-  DS_result = fdp_power(DS_selected, signal_index)
-  MDS_result = fdp_power(MDS_selected, signal_index)
-  knockoff_result <- knockoff(X, y, q)
-  BH_result <- MBHq(X, y, q, num_split)
-  c(DS_fdp  = DS_result$fdp,  DS_power  = DS_result$power,
-                    MDS_fdp = MDS_result$fdp, MDS_power = MDS_result$power,
-                    knockoff_fdp = knockoff_result$fdp, knockoff_power = knockoff_result$power,
-                    BH_fdp = BH_result$fdp, BH_power = BH_result$power)
-}
-stopCluster(cl)
-DS_mean_fdp = rowMeans(r)[1]
-MDS_mean_fdp = rowMeans(r)[3]
-DS_mean_power = rowMeans(r)[2]
-MDS_mean_power = rowMeans(r)[4]
-knockoff_mean_fdp = rowMeans(r)[5]
-BHq_mean_fdp = rowMeans(r)[7]
-knockoff_mean_power = rowMeans(r)[6]
-BHq_mean_power = rowMeans(r)[8]
-c(DS_mean_fdp, MDS_mean_fdp, knockoff_mean_fdp, BHq_mean_fdp)
-c(DS_mean_power, MDS_mean_power, knockoff_mean_power, BHq_mean_power)
-```
-
 By varying  correlation $\rho$, signal strength $\delta$ and dimension $p$ and 200 independent replications, we can reproduce Figure 5,6,7.
 
 ## Figure 10-11: Real data
 
-In the paper, we apply DS and MDS to detect mutations in the HIV-1 that are associated with drug resistance. The data cleaning and wrangling procedure is the same to the analysis based on the knockoff: https://cran.r-project.org/web/packages/knockoff/vignettes/hiv.html. For a more detailed discussion on the data cleaning procuedre and data description, please see the link above.
+In the paper, we apply DS and MDS to detect mutations in the HIV-1 that are associated with drug resistance. We copy the data cleaning and wrangling procedure from the analysis based on the knockoff: https://cran.r-project.org/web/packages/knockoff/vignettes/hiv.html. For a more detailed discussion on the data cleaning procuedre and data description, please see the link above.
 
 We will retrict our scope to the PI drugs. The result for NRTI and NNRTI drugs can be easily got by changing the drug_class = 'PI' to drug_class = 'NRTI'('NNRTI').
+
+We first do the data cleaning and get the reponse variables and the design matrix.
 
 ```{r}
 drug_class = 'PI' # Possible drug types are 'PI', 'NRTI', and 'NNRTI'. In the paper we restrict to PI and NRTI.
@@ -664,6 +612,7 @@ DS_knockoff_BHq <- function (X, y, q) {
   list(SDS = SDS_selected, MDS = MDS_selected, Knockoff = knockoff_selected, BHq = bhq_selected)
 }
 
+### Set fdr = 0.2
 fdr = 0.20
 results = lapply(Y, function(y) DS_knockoff_BHq(X, y, fdr))
 get_selected_name = function(X,y, selected){
@@ -745,7 +694,7 @@ The results can be slightly different than the results in the paper, since both 
 
 ## Figure 8-9: Gaussian Graphical Model
 
-Suppose $\mathbf X = (X_1,\ldots, X_p)$ follows a p-dimensional multivariate Normal dsitribution $N(\mathbf 0, \Sigma)$. Let $\Lambda = \Sigma^{-1} = (\lambda_{ij})$ be the precision matrix. $\lambda_{ij} = 0$ is equivalent to $X_i$ and $X_j$ are independent given the rest of the variables. The estimation of $\lambda_{ij}$ can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see https://arxiv.org/pdf/2002.08542.pdf
+Here we include the code to reproduce Figure 8 and 9.
 
 Setup 
 ```{r}
@@ -753,9 +702,10 @@ library(SILGGM)
 library(ppcor)
 ```
 
-
-
 We first provide the code for our DS and MDS algorithm and some utilize functions. For simplicity, we use the same name for the functions.
+
+$\textbf{Make sure to run the following four chunks of code in order for the simulation code to work.}$
+
 ```{r}
 ### nodewise data-splitting procedure
 DS <- function(data, q, num_split){
@@ -1006,60 +956,6 @@ data_save
 ```
 
 By varying $n, p, s$ and $s$ and running 200 independent relications, we are able to reproduce Figure 8 and Figure 9.
-
-We can also repeat the above procedure several times and see the average performance.
-
-```{r, eval = FALSE}
-cl = makeCluster(4)
-registerDoParallel(cl)
-### We set trials = 4 to reduce the computational time.
-trials = 12
-r <- foreach(icount(trials), .combine=cbind) %dopar% {
-  library(DSfdr)
-  library(glmnet)
-  library(MASS)
-  ### We set n = 200, p = 30 to reduce the computational time.
-  n = 200; p = 30; rho = 8; a = -0.6; c = 1.5
-  q = 0.2
-  num_split = 50
-  precision = matrix(0, nrow = p, ncol = p)
-  edges_set = matrix(0, nrow = p, ncol = p)
-  ### Construct banded graph
-  for(i in 1:p){
-   for(j in 1:p){
-     if(i == j){
-       precision[i, j] <- 1
-     }
-     if(i != j & abs(i - j) <= rho){
-       precision[i, j] <- sign(a)*abs(a)^(abs(i - j)/c)
-       edges_set[i, j] <- 1
-     }
-    }
-  }
-  ### Make precision matrix positive definite
-  min_eigen = min(eigen(precision)$values)
-  if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
-  ### Generate data
-  data <- mvrnorm(n, mu = rep(0,p), Sigma = solve(precision))
-  ### Select edges.
-  selected = DS_graph(data, q, num_split)
-  DS_selected = selected$DS_selected_edge
-  MDS_selected = selected$MDS_selected_edge
-  ### Evaluate the performance
-  DS_result = fdp_power_graph(DS_selected, edges_set)
-  MDS_result = fdp_power_graph(MDS_selected, edges_set)
-  c(DS_result$fdp, DS_result$power, MDS_result$fdp, MDS_result$power)
-}
-stopCluster(cl)
-DS_mean_fdp = rowMeans(r)[1]
-MDS_mean_fdp = rowMeans(r)[3]
-DS_mean_power = rowMeans(r)[2]
-MDS_mean_power = rowMeans(r)[4]
-c(DS_mean_fdp, MDS_mean_fdp)
-c(DS_mean_power, MDS_mean_power)
-```
-
-
 
 
 
