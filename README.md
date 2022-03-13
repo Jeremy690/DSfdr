@@ -27,3 +27,7 @@ The vignettes takes approximately 5 mins to knit.
 ## Feedback
 
 If you encounter error or would like to provide feedback, please use [Github -> Issues](https://github.com/LinBuyu/DSfdr/issues) to reach us. Thank you! 
+
+
+## Reproducible File
+We have uploaded an Rmd file to reproduce all the results in the paper [False Discovery Rate Control via Data Splitting](https://arxiv.org/pdf/2002.08542.pdf)
