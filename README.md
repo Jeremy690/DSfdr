@@ -30,4 +30,4 @@ If you encounter error or would like to provide feedback, please use [Github -> 
 
 
 ## Reproducible File
-We have uploaded an Rmd file to reproduce all the results in the paper [False Discovery Rate Control via Data Splitting](https://arxiv.org/pdf/2002.08542.pdf)
+We have uploaded an Rmd file to reproduce all the results in the paper [False Discovery Rate Control via Data Splitting](https://arxiv.org/pdf/2002.08542.pdf). The knockoff. R and MBHq.R are used to compare our methods with other two methods for linear regression. The data.txt are used in one of our simulation results. 
