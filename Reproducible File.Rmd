@@ -1,0 +1,1065 @@
+---
+title: "False Discovery Rate Control via Data Splitting: Reproduce Result"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+In this Rmarkdown file, we will show you how to reproduce our results for all figures in the paper. However, for most of the tasks, they are not feasible to run on a desktop machine, since each data point in the figure represents 200 independent replications and each replication takes several minutes to several hours to run depending on the dimension and the problem. Thus in this Rmarkdown file, we only provide the code with one single run.
+
+## Setup
+```{r setup}
+library(glmnet)
+library(MASS)
+library(knockoff)
+library(hdi)
+library(doParallel)
+library(mvtnorm)
+source('knockoff.R')
+source('MBHq.R')
+```
+
+Some utilize function.
+```{r}
+### select the relevant features using mirror statistics
+analys = function(mm, ww, q){
+  t_set = max(ww)
+  for(t in ww){
+    ps = length(mm[mm >= t])
+    ng = length(na.omit(mm[mm <= -t]))
+    rto = (ng + 1)/max(ps, 1)
+    if(rto <= q){
+      t_set = c(t_set, t)
+    }
+  }
+  thre = min(t_set)
+  nz_est = which(mm >= thre)
+  return(as.vector(nz_est))
+}
+
+### calculate fdp and power
+fdp_power <- function(selected_index, signal_index){
+  num_selected <- length(selected_index)
+  tp <- length(intersect(selected_index, signal_index))
+  fp <- num_selected - tp
+  fdp <- fp / max(num_selected, 1)
+  power <- tp / length(signal_index)
+  return(list(fdp = fdp, power = power))
+}
+```
+
+## Figure 2: MDS for the Normal means model.
+
+The following code show how to get the left hand side of Figure 2.
+```{r, eval = FALSE}
+#### Data splitting for Gaussian mean problem
+nob <- 500
+nsp <- 10 * nob
+
+### rank
+p1 <- p2 <- 0
+
+### algorithmic setting
+np <- 800; s0 <- trunc(np*0.2);
+mu <- c(rnorm(s0)*0.5, rep(0, np - s0))
+mu1 <- abs(qnorm(0.01)/sqrt(nob))
+mu2 <- mu1 - 0.02/sqrt(nob)
+
+### generate X1 and X2 conditioning on mu1 and mu2
+Sigma = diag(1, nob - 1) - 1/nob*rep(1, nob - 1)%o%rep(1, nob - 1)
+X1 = numeric(nob)
+X2 = numeric(nob)
+X1[-1] = mvrnorm(1, mu = rep(mu1, nob - 1), Sigma = Sigma)
+X2[-1] = mvrnorm(1, mu = rep(mu2, nob - 1), Sigma = Sigma)
+X1[1] = mu1*nob - sum(X1[-1])
+X2[1] = mu2*nob - sum(X2[-1])
+xob = matrix(rnorm(np*nob), ncol = np) + outer(rep(1, nob), mu)
+xob[,1:2] = cbind(X1, X2)
+
+#### calculate mirror statistics
+s1 = sample(c(1:nob), nob/2); s2 = setdiff(c(1:nob), s1)
+xs1 = colMeans(xob[s1,]); xs2 = colMeans(xob[s2,])
+mstat = abs(xs1 + xs2) - abs(xs1 - xs2)
+p1 = p1 + (mstat[1] >= mstat[2])
+
+#### calculate inclusion rate
+inclurate = rep(0, nsp)%o%rep(0, np)
+for(j in 1:nsp){
+  #### Calculate the Mirror stat
+  s1 <- sample(c(1:nob), nob/2); s2 <- setdiff(c(1:nob), s1)
+  xs1 <- colMeans(xob[s1,]); xs2 <- colMeans(xob[s2,])
+  mstat <- abs(xs1 + xs2) - abs(xs1 - xs2)
+  sm <- sort(abs(mstat), decreasing = T)
+  #### Get the selection results
+  for(i in 2:np){
+    t1 <- sm[i]
+    r1 <- sum(mstat < -t1)/sum(mstat > t1)
+    if(r1 <= 0.1) cut1 <- t1
+  }
+  sel2 = which(mstat > cut1)
+  inclurate[j,sel2] = inclurate[j, sel2] + 1/length(sel2)
+}
+inclusionrate = colMeans(inclurate)
+p2 = p2 + (inclusionrate[1] >= inclusionrate[2])
+
+#### save data
+data_save = list(DS_rank = p1, MDS_rank = p2)
+data_save
+```
+Repeat the above step 500 times and the swap probability for DS and MDS equals to $p_1/500$ and $p_2/500$ respectively. Then we vary sample size from $50$ to $5000$, we get the left hand side of Figure 2. 
+
+Then we show the code of the right hand side of Figure 2. We can run this code in 3 mins in a desktop machine.
+```{r}
+rm(list = ls())
+#### Data splitting for Gaussian mean problem
+np=800; s0=trunc(np*.2); nob=1000; nrep=400
+mu=c(rnorm(s0)*0.5,rep(0,np-s0))
+xob=matrix(rnorm(np*nob),ncol=np)+outer(rep(1,nob),mu)
+
+#### Get the p-values
+tst=colMeans(xob)*sqrt(nob)
+pval=pnorm(-abs(tst))*2
+#### Get mirror stat and inclusion rate for 400 independent runs
+nsp=400; fdrs=rep(0,nsp)%o%rep(1,2)
+inclurate=rep(0,nsp)%o%rep(0,np)
+for(j in 1:nsp){
+  #xob=matrix(rnorm(np*nob),ncol=np)+outer(rep(1,nob),mu)
+  s1=sample(c(1:nob), nob/2); s2=setdiff(c(1:nob),s1)
+  xs1=colMeans(xob[s1,]); xs2=colMeans(xob[s2,])
+  mstat=abs(xs1+xs2)-abs(xs1-xs2)
+  sm=sort(mstat); t1=sm[1]
+  for(i in 2:np){
+    r1=length((which(mstat<t1)))/length(which(mstat>abs(t1)))
+    if(r1<0.1){t1=sm[i]}else{
+      cut1=abs(t1); break
+    }
+  }
+  sel2=which(mstat>cut1); fs2=sel2[sel2>s0]
+  fdrs[j,]=c(length(fs2),length(sel2))
+  inclurate[j,sel2]=inclurate[j,sel2]+1/length(sel2)
+}
+index <- intersect(which(log(pval)>(-10)), which(log(pval)<(-2)))
+par(mar = c(2.5, 2.5, 5.1, 2.5))
+plot(pval[index],colMeans(inclurate)[index], pch="+", col="orange", xlab = "", 
+     ylab = "", cex.lab = 1.4, xaxt = 'n', yaxt = 'n')
+axis(side = 2, tck = -0.01, padj = 1.4)
+grid(col = "darkgrey")
+par(new = T)
+plot(pval[index], mstat[index], pch=20, col="grey", axes=F, xlab=NA, ylab=NA, cex.lab = 1.5, cex.axis = 1.5)
+axis(side = 4, tck = -0.01, padj = -1.4)
+axis(side = 1, tck = -0.01, padj = -1.4)
+mtext(side = 4, line = 1.4, 'Mirror statistic', cex = 1.5, cex.axis = 2)
+mtext(side = 1, line = 1.4, 'p-value', cex = 1.5, cex.axis = 2)
+mtext(side = 2, line = 1.4, 'Inclusion rate', cex = 1.5, cex.axis = 2)
+box(lwd = 0.01)
+
+#### Get inclusion rate for 10000 independent runs
+nsp=10000; fdrs=rep(0,nsp)%o%rep(1,2)
+inclurate=rep(0,nsp)%o%rep(0,np)
+for(j in 1:nsp){
+  #xob=matrix(rnorm(np*nob),ncol=np)+outer(rep(1,nob),mu)
+  s1=sample(c(1:nob), nob/2); s2=setdiff(c(1:nob),s1)
+  xs1=colMeans(xob[s1,]); xs2=colMeans(xob[s2,])
+  mstat=abs(xs1+xs2)-abs(xs1-xs2)
+  sm=sort(mstat); t1=sm[1]
+  for(i in 2:np){
+    r1=length((which(mstat<t1)))/length(which(mstat>abs(t1)))
+    if(r1<0.1){t1=sm[i]}else{
+      cut1=abs(t1); break
+    }
+  }
+  sel2=which(mstat>cut1); fs2=sel2[sel2>s0]
+  fdrs[j,]=c(length(fs2),length(sel2))
+  inclurate[j,sel2]=inclurate[j,sel2]+1/length(sel2)
+}
+par(new = T)
+plot(pval[index],colMeans(inclurate)[index], pch="*", col="dodgerblue", xlab = NA, axes=F,
+     ylab = NA, cex.lab = 1.5, cex.axis = 1.5)
+legend(0.07, 0.006, pch = c("*", NA), legend = c("",""), bty ='n', col = "dodgerblue")
+legend(0.066, 0.006, legend = c("/", NA), bty ='n', col = "black")
+legend(0.074, 0.00635, pch = c(NA, "+"), legend = c("", NA), bty ='n', col = "orange")
+legend(0.072, 0.0058, pch = c(NA, 20), legend = c("",""), bty ='n', col = "grey")
+legend(0.072, 0.0061, legend = c("Inclusion rate", NA), bty='n', pt.cex = 2, cex = 1.4)
+legend(0.072, 0.0061, legend = c("", "Mirror statistic"), bty='n', pt.cex = 2, cex = 1.4)
+
+
+```
+
+
+## Figure 3: optimality
+
+The following code is the DS and MDS algorithm, for different choice of $f$, change the construction of M, we show the optimal one and leave the other two choices in the annotation. We will use this code for the further simulations.
+```{r}
+DS <- function(X, y, num_split, q){
+  n <- dim(X)[1]; p <- dim(X)[2]
+  inclusion_rate <- matrix(0, nrow = num_split, ncol = p)
+  fdp <- rep(0, num_split)
+  power <- rep(0, num_split)
+  num_select <- rep(0, num_split)
+  
+  for(iter in 1:num_split){
+    ### randomly split the data
+    sample_index1 <- sample(x = c(1:n), size = 0.5 * n, replace = F)
+    sample_index2 <- setdiff(c(1:n), sample_index1)
+    
+    ### get the penalty lambda for Lasso
+    cvfit <- cv.glmnet(X[sample_index1, ], y[sample_index1], type.measure = "mse", nfolds = 10)
+    lambda <- cvfit$lambda.1se/sqrt(2)
+    
+    ### run Lasso on the first half of the data
+    beta1 <- as.vector(glmnet(X[sample_index1, ], y[sample_index1], family = "gaussian", alpha = 1, lambda = lambda)$beta)
+    nonzero_index <- which(beta1 != 0)
+    
+    ### run OLS on the second half of the data, restricted on the selected features
+    beta2 <- rep(0, p)
+    beta2[nonzero_index] <- as.vector(lm(y[sample_index2] ~ X[sample_index2, nonzero_index] - 1)$coeff)
+    
+    ### Change the construction of M in order to show the optimality of f_3!
+    ### calculate the mirror statistics via f_3
+    M <- sign(beta1 * beta2) * (abs(beta1) + abs(beta2))
+    ### calculate the mirror statistics via f_1
+    # M <- abs(beta1 + beta2) - abs(beta1 - beta2)
+    ### calculate the mirror statistics via f_2
+    # M <- beta1 * beta2
+    selected_index <- analys(M, abs(M), q)
+    
+    
+    ### number of selected variables
+    num_select[iter] <- length(selected_index)
+    inclusion_rate[iter, selected_index] <- 1/num_select[iter]
+    
+    ### calculate fdp and power
+    result <- fdp_power(selected_index, signal_index)
+    fdp[iter] <- result$fdp
+    power[iter] <- result$power
+  }
+  
+  ### single data-splitting (DS) result
+  DS_fdr <- fdp[1]
+  DS_power <- power[1]
+  
+  ### multiple data-splitting (MDS) result
+  inclusion_rate <- apply(inclusion_rate, 2, mean)
+  
+  ### rank the features by the empirical inclusion rate
+  feature_rank <- order(inclusion_rate)
+  feature_rank <- setdiff(feature_rank, which(inclusion_rate == 0))
+  null_feature <- numeric()
+  
+  ### backtracking 
+  for(feature_index in 1:length(feature_rank)){
+    if(sum(inclusion_rate[feature_rank[1:feature_index]]) > q){
+      break
+    }else{
+      null_feature <- c(null_feature, feature_rank[feature_index])
+    }
+  }
+  selected_index <- setdiff(feature_rank, null_feature)
+  
+  ### calculate fdp and power
+  result <- fdp_power(selected_index, signal_index)
+  MDS_fdr <- result$fdp
+  MDS_power <- result$power
+  
+  return(list(DS_fdr = DS_fdr, DS_power = DS_power, MDS_fdr = MDS_fdr, MDS_power = MDS_power))
+}
+```
+
+
+Simulation.
+```{r}
+### algorithmic settings
+n <- 500
+p <- 500
+p0 <- 50
+q <- 0.1
+rho <- 0.4
+delta <- 5
+num_split <- 50
+
+### constant correlation
+covariance <- toeplitz(seq(rho, 0, length.out = p/10))
+covariance <- bdiag(rep(list(covariance), 10))
+diag(covariance) <- 1
+
+### randomly locate the signals
+signal_index <- sample(c(1:p), size = p0, replace = F)
+beta_star <- rep(0, p)
+beta_star[signal_index] <- rnorm(p0, mean = 0, sd = delta*sqrt(log(p)/n))
+
+### generate data  
+X = mvrnorm(n, mu = rep(0, p),  Sigma = covariance)
+y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
+
+
+
+### DS and MDS
+DS_result <- DS(X,y, num_split, q)
+
+### save results
+data_save <- list(DS_fdr = DS_result$DS_fdr, DS_power = DS_result$DS_power, 
+                  MDS_fdr = DS_result$MDS_fdr, MDS_power = DS_result$MDS_power)
+data_save
+```
+In the code we only show how to get the results for $f_3$, by changing the construction of the mirror statistics in DS function, we are able to get the results for the other two construction, i.e. $f_1$ and $f_2$. Then repeat the same procedure 200 times and vary the correlation $\rho$ and the signal $\delta$, we are able to get the Figure 3 in the graph.
+
+
+## Figure 4: Effect on the number of splits.
+
+```{r}
+### High dimension linear model (the effect of the number of splits in MDS)
+### algorithmic settings
+n <- 500
+p <- 500
+p0 <- 50
+q <- 0.1
+### Right hand side
+rho = 0.8
+### Left hand side
+#rho = 0
+delta <- 3
+num_split <- 20
+
+### toeplitz correlation
+covariance <- toeplitz(seq(rho, 0, length.out = p/10))
+covariance <- bdiag(rep(list(covariance), 10))
+diag(covariance) <- 1
+
+### randomly locate the signals
+signal_index <- sample(c(1:p), size = p0, replace = F)
+
+### randomly generate the true beta
+beta_star <- rep(0, p)
+signal_index <- sample(c(1:p), size = p0, replace = F)
+beta_star[signal_index] <- rnorm(p0, mean = 0, sd = delta*sqrt(1/n))
+
+
+### generate data  
+X = mvrnorm(n, mu = rep(0, p),  Sigma = covariance)
+y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
+
+
+### DS and MDS
+DS_result <- DS(X, y, num_split, q)
+
+### save data
+data_save <- list(DS_fdr  = DS_result$DS_fdr,  DS_power  = DS_result$DS_power,
+                  MDS_fdr = DS_result$MDS_fdr, MDS_power = DS_result$MDS_power)
+data_save
+```
+The code is rather similar to the code for Figure 3, except here, we vary the number of DS replications ``num_split'' and fix other simualtion parameters.
+
+## Figure 5-7: Linear regression
+
+In this chunck, we consider reproducing Figure 5,6,7. We focus on one data point of the Figure 5 and the rest of the figures are almost the same except for the data generating process, for which we will also include in the code.
+
+#### Generating data
+```{r}
+# Sample from a linear model
+# n - number of samples
+# p - number of variables
+# p0 - number of signals
+# delta - signal index
+# rho - correlation
+# Sigma - covariance matrix for the design matrix.
+
+n = 800
+p = 2000
+p0 = 50
+q <- 0.1
+rho <- 0.5
+delta = 5
+
+### number of splits
+num_split <- 50
+
+### Set up the covariance matrix
+sig1 <- toeplitz(seq(rho, 0, length.out = p/10))
+covariance <- bdiag(rep(list(sig1), 10))
+diag(covariance) <- rep(1, p)
+
+
+
+### Generate X from multivariate Normal distribution in Figure 5.
+X <- mvrnorm(n, mu = rep(0, p), Sigma = covariance)
+
+### Generate X from multivariate t distribution in Figure 6.
+#X <- rmvt(n, sigma = as.matrix(covariance), df = 3)
+
+### Generate X from mixture normal distribution in Figure 6.
+#X1 <- mvrnorm(n/2, mu = rep(0.5, p),  Sigma = covariance)
+#X2 <- mvrnorm(n/2, mu = rep(-0.5, p), Sigma = covariance)
+#X  <- rbind(X1, X2)
+
+### Generate X from the scRNA data in Figure 7.
+#data <- t(read.table("/n/home09/cdai/FDR/real_data/data/data.txt"))
+### Remove the columns with too small nonzero samples
+#freq <- colSums(data != 0)/nrow(data)
+#remove_index <- which(freq < 0.1)
+#X <- data[, -remove_index]
+### Only include the columns with top p standard deviation.
+#std <- apply(X, 2, sd)
+#gene_index <- order(std, decreasing = T)
+#X <- X[, gene_index[1:p]]
+#X <- X[1:n, ]
+### Normalize the standard deivation of each column to be 1
+#X <- scale(X)
+
+
+### randomly generate the true beta
+beta_star <- rep(0, p)
+signal_index <- sample(c(1:p), size = p0, replace = F)
+beta_star[signal_index] <- rnorm(p0, mean = 0, sd = delta*sqrt(log(p)/n))
+
+### generate y
+y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
+```
+
+#### Comparison
+
+In the paper, we compare our methods with multiple BHq (MBHq) method and Model-X knockoff method. We put these two methods into two seperate files: MBHq.R and knockoff.R
+```{r}
+# Using DS function to select variables
+# num_split - Repeated number of DS procedure for MDS
+# q - FDR control level
+DS_result = DS(X, y, num_split, q)
+knockoff_result <- knockoff(X, y, q)
+BH_result <- MBHq(X, y, q, num_split)
+data_save <- list(DS_fdr  = DS_result$DS_fdr,  DS_power  = DS_result$DS_power,
+                  MDS_fdr = DS_result$MDS_fdr, MDS_power = DS_result$MDS_power,
+                  knockoff_fdp = knockoff_result$fdp, knockoff_power = knockoff_result$power,
+                  BH_fdp = BH_result$fdp, BH_power = BH_result$power)
+data_save
+```
+
+
+We then repeat the above procedure several times. Use doParallel package to make the computation faster.
+```{r, eval = False}
+# trials - number of replications
+# Register the cluster
+cl = makeCluster(4)
+registerDoParallel(cl)
+trials = 12
+r <- foreach(icount(trials), .combine=cbind) %dopar% {
+  library(DSfdr)
+  library(glmnet)
+  library(MASS)
+  # generate data
+  n = 800
+  p = 2000
+  p0 = 50
+  q <- 0.1
+  rho <- 0.5
+  delta = 5
+  
+  ### number of splits
+  num_split <- 50
+  
+  ### Set up the covariance matrix
+  sig1 <- toeplitz(seq(rho, 0, length.out = p/10))
+  covariance <- bdiag(rep(list(sig1), 10))
+  diag(covariance) <- rep(1, p)
+  X <- mvrnorm(n, mu = rep(0, p), Sigma = covariance)
+  ### randomly generate the true beta
+  beta_star <- rep(0, p)
+  signal_index <- sample(c(1:p), size = p0, replace = F)
+  beta_star[signal_index] <- rnorm(p0, mean = 0, sd = delta*sqrt(log(p)/n))
+  
+  ### generate y
+  y <- X%*%beta_star + rnorm(n, mean = 0, sd = 1)
+  
+  selection = DS(X, y, num_split, q)
+  DS_selected = selection$DS_feature
+  MDS_selected = selection$MDS_feature
+  
+  DS_result = fdp_power(DS_selected, signal_index)
+  MDS_result = fdp_power(MDS_selected, signal_index)
+  knockoff_result <- knockoff(X, y, q)
+  BH_result <- MBHq(X, y, q, num_split)
+  c(DS_fdp  = DS_result$fdp,  DS_power  = DS_result$power,
+                    MDS_fdp = MDS_result$fdp, MDS_power = MDS_result$power,
+                    knockoff_fdp = knockoff_result$fdp, knockoff_power = knockoff_result$power,
+                    BH_fdp = BH_result$fdp, BH_power = BH_result$power)
+}
+stopCluster(cl)
+DS_mean_fdp = rowMeans(r)[1]
+MDS_mean_fdp = rowMeans(r)[3]
+DS_mean_power = rowMeans(r)[2]
+MDS_mean_power = rowMeans(r)[4]
+knockoff_mean_fdp = rowMeans(r)[5]
+BHq_mean_fdp = rowMeans(r)[7]
+knockoff_mean_power = rowMeans(r)[6]
+BHq_mean_power = rowMeans(r)[8]
+c(DS_mean_fdp, MDS_mean_fdp, knockoff_mean_fdp, BHq_mean_fdp)
+c(DS_mean_power, MDS_mean_power, knockoff_mean_power, BHq_mean_power)
+```
+
+By varying  correlation $\rho$, signal strength $\delta$ and dimension $p$ and 200 independent replications, we can reproduce Figure 5,6,7.
+
+## Figure 10-11: Real data
+
+In the paper, we apply DS and MDS to detect mutations in the HIV-1 that are associated with drug resistance. The data cleaning and wrangling procedure is the same to the analysis based on the knockoff: https://cran.r-project.org/web/packages/knockoff/vignettes/hiv.html. For a more detailed discussion on the data cleaning procuedre and data description, please see the link above.
+
+We will retrict our scope to the PI drugs. The result for NRTI and NNRTI drugs can be easily got by changing the drug_class = 'PI' to drug_class = 'NRTI'('NNRTI').
+
+```{r}
+drug_class = 'PI' # Possible drug types are 'PI', 'NRTI', and 'NNRTI'. In the paper we restrict to PI and NRTI.
+
+### Cleaning and Fetching the data
+base_url = 'http://hivdb.stanford.edu/pages/published_analysis/genophenoPNAS2006'
+gene_url = paste(base_url, 'DATA', paste0(drug_class, '_DATA.txt'), sep='/')
+tsm_url = paste(base_url, 'MUTATIONLISTS', 'NP_TSM', drug_class, sep='/')
+
+gene_df = read.delim(gene_url, na.string = c('NA', ''), stringsAsFactors = FALSE)
+tsm_df = read.delim(tsm_url, header = FALSE, stringsAsFactors = FALSE)
+names(tsm_df) = c('Position', 'Mutations')
+
+### Removing the rows with error flags or nonstandard mutation codes.
+grepl_rows <- function(pattern, df) {
+  cell_matches = apply(df, c(1,2), function(x) grepl(pattern, x))
+  apply(cell_matches, 1, all)
+}
+
+pos_start = which(names(gene_df) == 'P1')
+pos_cols = seq.int(pos_start, ncol(gene_df))
+valid_rows = grepl_rows('^(\\.|-|[A-Zid]+)$', gene_df[,pos_cols])
+gene_df = gene_df[valid_rows,]
+
+### Prepare the design matrix and response variable.
+# Flatten a matrix to a vector with names from concatenating row/column names.
+flatten_matrix <- function(M, sep='.') {
+  x <- c(M)
+  names(x) <- c(outer(rownames(M), colnames(M),
+                      function(...) paste(..., sep=sep)))
+  x
+}
+
+# Construct preliminary design matrix.
+muts = c(LETTERS, 'i', 'd')
+X = outer(muts, as.matrix(gene_df[,pos_cols]), Vectorize(grepl))
+X = aperm(X, c(2,3,1))
+dimnames(X)[[3]] <- muts
+X = t(apply(X, 1, flatten_matrix))
+mode(X) <- 'numeric'
+
+# Remove any mutation/position pairs that never appear in the data.
+X = X[,colSums(X) != 0]
+
+# Extract response matrix.
+Y = gene_df[,4:(pos_start-1)]
+```
+
+Comparison of different methods.
+
+```{r}
+analys = function(mm, ww, q){
+  t_set = max(ww)
+  for(t in ww){
+    ps = length(mm[mm >= t])
+    ng = length(na.omit(mm[mm <= -t]))
+    rto = (ng + 1) / max(ps, 1)
+    if(rto <= q){
+      t_set = c(t_set, t)
+    }
+  }
+  thre = min(t_set)
+  nz_est = which(mm >= thre)
+  nz_est
+}
+
+Split = function(X, y, q){
+  n = nrow(X); p = ncol(X)
+  num_split <- 50
+  selected_index_multiple <- matrix(0, nrow = num_split, ncol = p)
+  fdr_multiple <- rep(0, num_split)
+  power_multiple <- rep(0, num_split)
+  num_select <- rep(0, num_split)
+
+  for(iter in 1:num_split){
+    ### randomly split the data and estimate coefficient
+    while(TRUE){
+      sample_index1 <- sample(x = c(1:n), size = trunc(0.5 * n), replace = F)
+      sample_index2 <- setdiff(c(1:n), sample_index1)
+      cvfit = cv.glmnet(X[sample_index1, ], y[sample_index1], nfolds = 10)
+      beta1 = as.vector(coef(cvfit$glmnet.fit, cvfit$lambda.1se))[-1]
+      nonzero_index <- which(beta1 != 0)
+      if(length(nonzero_index)!=0)
+        break
+    }
+    beta2 <- rep(0, p)
+    beta2[nonzero_index] <- as.vector(lm(y[sample_index2] ~ X[sample_index2, nonzero_index] - 1)$coeff)
+    ### calculate the test statistics
+    M <- sign(beta1 * beta2) * (abs(beta1) + abs(beta2))
+    M[is.na(M)] = 0
+    ### find the threshold
+    result = analys(M, abs(M), q)
+    current_selected_index <- result
+    ### number of selected variables
+    num_select[iter] <- length(current_selected_index)
+    if(num_select[iter]!=0)
+      selected_index_multiple[iter, current_selected_index] <- selected_index_multiple[iter, current_selected_index] + 1/num_select[iter]
+    
+  }
+  
+  ### single splitting result
+  single_split_selected = current_selected_index
+  
+  ### multiple splitting result
+  feature_rank <- order(apply(selected_index_multiple, 2, mean))
+  feature_rank <- setdiff(feature_rank, which(apply(selected_index_multiple, 2, mean) == 0))
+  null_variable <- numeric()
+  fdr_replicate <- rep(0, num_split)
+  for(feature_index in 1:length(feature_rank)){
+    for(split_index in 1:num_split){
+      if(selected_index_multiple[split_index, feature_rank[feature_index]]){
+        fdr_replicate[split_index] <- fdr_replicate[split_index] + 1/num_select[split_index]
+      }
+    }
+    if(mean(fdr_replicate) > q){
+      break
+    }else{
+      null_variable <- c(null_variable, feature_rank[feature_index])
+    }
+  }
+  multiple_selected_index <- setdiff(feature_rank, null_variable)
+  list(SDS = single_split_selected, MDS = multiple_selected_index)
+}
+
+
+DS_knockoff_BHq <- function (X, y, q) {
+  # Log-transform the drug resistance measurements.
+  y = log(y)
+  
+  # Remove patients with missing measurements.
+  missing = is.na(y)
+  y = y[!missing]
+  X = X[!missing,]
+  
+  # Remove predictors that appear less than 3 times.
+  X = X[,colSums(X) >= 3]
+  
+  # Remove duplicate predictors.
+  X = X[,colSums(abs(cor(X)-1) < 1e-4) == 1]
+  
+  # Run the knockoff filter.
+  knock.gen = function(x) create.second_order(x,  method='equi')
+  result = knockoff.filter(X, y, fdr=fdr, knockoffs=knock.gen, statistic=stat.glmnet_lambdasmax)
+  knockoff_selected = names(result$selected)
+  
+  # Run BHq.
+  p = ncol(X)
+  lm.fit = lm(y ~ X - 1) # no intercept
+  p.values = coef(summary(lm.fit))[,4]
+  cutoff = max(c(0, which(sort(p.values) <= fdr * (1:p) / p)))
+  bhq_selected = names(which(p.values <= fdr * cutoff / p))
+  
+  # Run DS and MDS
+  result = Split(X, y, fdr)
+  SDS_selected = colnames(X)[result$SDS]
+  MDS_selected = colnames(X)[result$MDS]
+  list(SDS = SDS_selected, MDS = MDS_selected, Knockoff = knockoff_selected, BHq = bhq_selected)
+}
+
+fdr = 0.20
+results = lapply(Y, function(y) DS_knockoff_BHq(X, y, fdr))
+get_selected_name = function(X,y, selected){
+  y = log(y)
+  
+  # Remove patients with missing measurements.
+  missing = is.na(y)
+  y = y[!missing]
+  X = X[!missing,]
+  
+  # Remove predictors that appear less than 3 times.
+  X = X[,colSums(X) >= 3]
+  
+  # Remove duplicate predictors.
+  X = X[,colSums(abs(cor(X)-1) < 1e-4) == 1]
+  colnames(X)[selected]
+}
+       
+
+
+
+get_position <- function(x)
+  sapply(regmatches(x, regexpr('[[:digit:]]+', x)), as.numeric)
+
+comparisons <- lapply(results, function(drug) {
+  lapply(drug, function(selected) {
+    positions = unique(get_position(selected)) # remove possible duplicates
+    discoveries = length(positions)
+    false_discoveries = length(setdiff(positions, tsm_df$Position))
+    list(true_discoveries = discoveries - false_discoveries,
+         false_discoveries = false_discoveries)
+  })
+})
+
+### We copy results from (Lu et al., 2018)
+comparisons$APV$DeepPINK$true_discoveries = 18
+comparisons$APV$DeepPINK$false_discoveries = 0
+comparisons$ATV$DeepPINK$true_discoveries = 26
+comparisons$ATV$DeepPINK$false_discoveries = 10
+comparisons$IDV$DeepPINK$true_discoveries = 19
+comparisons$IDV$DeepPINK$flase_discoveries = 6
+comparisons$LPV$DeepPINK$true_discoveries = 18
+comparisons$LPV$DeepPINK$false_discoveries = 5
+comparisons$NFV$DeepPINK$true_discoveries = 28
+comparisons$NFV$DeepPINK$false_discoveries = 10
+comparisons$RTV$DeepPINK$true_discoveries = 18
+comparisons$RTV$DeepPINK$false_discoveries = 4
+comparisons$SQV$DeepPINK$true_discoveries = 15
+comparisons$SQV$DeepPINK$false_discoveries = 2
+
+
+### DeepPINK results for NRTI drugs.
+'
+comparisons$ABC$DeepPINK$true_discoveries = 12
+comparisons$ABC$DeepPINK$false_discoveries = 4
+comparisons$AZT$DeepPINK$true_discoveries = 13
+comparisons$AZT$DeepPINK$false_discoveries = 5
+comparisons$D4T$DeepPINK$true_discoveries = 10
+comparisons$D4T$DeepPINK$false_discoveries = 2
+comparisons$DDI$DeepPINK$true_discoveries = 8
+comparisons$DDI$DeepPINK$false_discoveries = 2
+comparisons$TDF$DeepPINK$true_discoveries = 10
+comparisons$TDF$DeepPINK$false_discoveries = 2
+comparisons$X3TC$DeepPINK$true_discoveries = 8
+comparisons$X3TC$DeepPINK$false_discoveries = 2
+'
+
+for (drug in names(comparisons)) {
+  plot_data = do.call(cbind, comparisons[[drug]])
+  plot_data = plot_data[c('true_discoveries','false_discoveries'),]
+  barplot(as.matrix(plot_data), main = paste('Resistance to', drug),
+          col = c('navy','orange'), ylim = c(0,40))
+}
+```
+
+The results can be slightly different than the results in the paper, since both our methods and knockoff method has randomness in it.
+
+
+
+## Figure 8-9: Gaussian Graphical Model
+
+Suppose $\mathbf X = (X_1,\ldots, X_p)$ follows a p-dimensional multivariate Normal dsitribution $N(\mathbf 0, \Sigma)$. Let $\Lambda = \Sigma^{-1} = (\lambda_{ij})$ be the precision matrix. $\lambda_{ij} = 0$ is equivalent to $X_i$ and $X_j$ are independent given the rest of the variables. The estimation of $\lambda_{ij}$ can be recast as a nodewise regression problem, this motivates us to utilize our FDR control method in linear regression to control the FDR in gaussian graphical model. For more detailed discuss, please see https://arxiv.org/pdf/2002.08542.pdf
+
+Setup 
+```{r}
+library(SILGGM)
+library(ppcor)
+```
+
+
+
+We first provide the code for our DS and MDS algorithm and some utilize functions. For simplicity, we use the same name for the functions.
+```{r}
+### nodewise data-splitting procedure
+DS <- function(data, q, num_split){
+  DS_selected_edge  <- matrix(0, nrow = p, ncol = p)
+  MDS_selected_edge <- matrix(0, nrow = p, ncol = p)
+  
+  for(j in 1:p){
+    ### response variable and design matrix
+    y <- data[, j]
+    X <- data[, -j]
+    
+    inclusion_rate <- matrix(0, nrow = num_split, ncol = p - 1)
+    num_select <- rep(0, num_split)
+    
+    ### multiple data splits
+    for(iter in 1:num_split){
+      ### randomly split the data
+      sample_index1 <- sample(x = c(1:n), size = 0.5 * n, replace = F)
+      sample_index2 <- setdiff(c(1:n), sample_index1)
+      
+      ### get the penalty lambda for Lasso
+      cvfit  <- cv.glmnet(X[sample_index1, ], y[sample_index1], type.measure = "mse", nfolds = 10)
+      lambda <- cvfit$lambda.min
+      
+      ### run Lasso on the first half of the data
+      beta1 <- as.vector(glmnet(X[sample_index1, ], y[sample_index1], family = "gaussian", alpha = 1, lambda = lambda)$beta)
+      nonzero_index = which(beta1 != 0)
+      
+      ### run OLS on the second half of the data, restricted on the selected features
+      if(length(nonzero_index) != 0){
+        beta2 <- rep(0, p - 1)
+        fit <- lm(y[sample_index2] ~ X[sample_index2, nonzero_index] - 1)
+        beta2[nonzero_index] <- as.vector(fit$coeff)
+      }
+      
+      ### calculate the mirror statistics
+      M <- sign(beta1 * beta2) * (abs(beta1) + abs(beta2))
+      selected_index <- analys(M, abs(M), q/2)
+      
+      ### the size of the selected neighborhood
+      num_select[iter] <- length(selected_index)
+      inclusion_rate[iter, selected_index] <- 1/num_select[iter]
+    }
+    
+    ### single data-splitting result
+    DS_selected_edge[j, -j] <- ifelse(inclusion_rate[1, ] > 0, 1, 0)
+    
+    ### multiple data-splitting result
+    inclusion_rate <- apply(inclusion_rate, 2, mean)
+    feature_rank <- order(inclusion_rate)
+    feature_rank <- setdiff(feature_rank, which(inclusion_rate == 0))
+    null_feature <- numeric()
+    for(feature_index in 1:length(feature_rank)){
+      if(sum(inclusion_rate[feature_rank[1:feature_index]]) > q/2){
+        break
+      }else{
+        null_feature <- c(null_feature, feature_rank[feature_index])
+      }
+    }
+    selected_index <- rep(0, p - 1)
+    selected_index[setdiff(feature_rank, null_feature)] <- 1
+    MDS_selected_edge[j, -j] <- selected_index
+  }
+  
+  ### single data-splitting fdp and power
+  fdp_power_result <- fdp_power(DS_selected_edge)
+  DS_fdp <- fdp_power_result$fdp
+  DS_power <- fdp_power_result$power
+  
+  ### multiple data-splitting fdp and power
+  fdp_power_result <- fdp_power(MDS_selected_edge)
+  MDS_fdp <- fdp_power_result$fdp
+  MDS_power <- fdp_power_result$power
+  
+  return(list(DS_fdp = DS_fdp, DS_power = DS_power, MDS_fdp = MDS_fdp, MDS_power = MDS_power))
+}
+```
+
+The gaussian graphical model requires a new analys function to get the selected variables and a new fdp_power() function to calculate the fdp and power.
+
+```{r}
+### select the relevant features using mirror statistics for Gaussian graphical model.
+analys <- function(mm, ww, q){
+  ### mm: mirror statistics
+  ### ww: absolute value of mirror statistics
+  ### q:  FDR control level
+  cutoff_set <- max(ww)
+  for(t in ww){
+    ps <- length(mm[mm > t])
+    ng <- length(na.omit(mm[mm < -t]))
+    rto <- (ng)/max(ps, 1)
+    if(rto <= q){
+      cutoff_set <- c(cutoff_set, t)
+    }
+  }
+  cutoff <- min(cutoff_set)
+  selected_index <- which(mm > cutoff)
+  
+  return(selected_index)
+}
+
+### Calculate fdp and power for Guassian graphical models
+fdp_power <- function(selected_edge){
+  num_false_discoveries <- 0
+  num_selected_edge <- 0
+  for(i in 1:(p - 1)){
+    for(j in (i + 1):p){
+      if(selected_edge[i, j] == 1 | selected_edge[j, i] == 1){
+        num_selected_edge <- num_selected_edge + 1
+        if(precision[i, j] == 0){
+          num_false_discoveries <- num_false_discoveries + 1
+        }
+      }
+    }
+  }
+  fdp <- num_false_discoveries/num_selected_edge
+  power <- (num_selected_edge - num_false_discoveries)/sum(edges_set)*2
+  
+  return(list(fdp = fdp, power = power))
+}
+```
+
+In the paper, we compare our methods with BHq method and GFC method, we include the code here.
+
+GFC method.
+```{r}
+### GFC-L and GFC-SL (Liu et al 2013)
+GFC <- function(data, precision, q){
+  fit <- SILGGM(data, method = 'GFC_L',  true_graph = precision, alpha = q)
+  
+  list(fdp = fit$FDR, power = fit$power)
+}
+```
+
+BHq method.
+```{r}
+### BHq and BYq based on pairwise partial correlation test
+BHq <- function(data, q){
+  n <- dim(data)[1]
+  p <- dim(data)[2]
+  
+  ### get pvalues
+  pvalues <- NULL
+  for(i in 2:p){
+    for(j in 1:(i-1)){
+      pvalues = suppressWarnings(c(pvalues, pcor.test(data[, i], data[, j], data[, -c(i,j)])$p.value))
+    }
+  }
+  
+  ### selected_edge
+  sorted_pvalues <- sort(pvalues, decreasing = F, index.return = T)
+  cutoff <- max(which(sorted_pvalues$x <= (1:(p*(p-1)/2))*q / (p*(p-1)/2)))
+  selected_edge <- sorted_pvalues$ix[1:cutoff]
+ 
+  ### calculate fdp and power
+  true_edge_set <- c(NULL)
+  edge_index <- 0
+  for(i in 2:p){
+    for(j in 1:(i-1)){
+      edge_index <- edge_index + 1
+      if(precision[j, i] != 0){
+        true_edge_set <- c(true_edge_set, edge_index)
+      }
+    }
+  }
+  tp <- length(intersect(true_edge_set, selected_edge))
+  fp <- length(selected_edge) - tp
+  fdp <- fp/(tp + fp)
+  power <- tp/length(true_edge_set)
+  
+  return(list(fdp = fdp, power = power))
+}
+```
+
+### Data generating Process
+
+We include the generating process for both the banded graph and blockwise diagonal graph here.
+```{r}
+# generate data
+# rho - bandwidth of the banded precision matrix
+# a and c defined as in the paper
+# edge_set - binary matrix indicating the existence of the edge.
+# precision - true precision matrix
+n = 500   
+p <- 100
+rho <- 8    
+a <- -0.6  
+c <- 1.5
+q <- 0.2
+num_split <- 50
+precision <- matrix(0, nrow = p, ncol = p)
+edges_set <- matrix(0, nrow = p, ncol = p)
+
+### banded graph in Figure 8
+for(i in 1:p){
+  for(j in 1:p){
+    if(i == j){
+      precision[i, j] <- 1
+    }
+    if(i != j & abs(i - j) <= rho){
+      precision[i, j] <- sign(a)*abs(a)^(abs(i - j)/c)
+      edges_set[i, j] <- 1
+    }
+  }
+}
+
+### block diagonal graph in Figure 9
+#block_size <- 25
+#num_blocks <- p/block_size
+#for(iter in 1:num_blocks){
+#  for(i in 1:block_size){
+#    for(j in i:block_size){
+#      row_index <- (iter - 1)*block_size + i
+#      col_index <- (iter - 1)*block_size + j
+#      if(row_index == col_index){
+#        precision[row_index, col_index] <- 1
+#      }else{
+#        precision[row_index, col_index] <- runif(1, min = 0.4, max = 0.8) * sample(c(-1, 1), size = 1)
+#        precision[col_index, row_index] <- precision[row_index, col_index]
+#        edges_set[row_index, col_index] <- 1
+#        edges_set[col_index, row_index] <- 1
+#      }
+#    }
+#  }
+#}
+
+### the precision matrix should be positive definite
+min_eigen <- min(eigen(precision)$values)
+if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
+
+### generate samples
+data <- rmvnorm(n, mean = rep(0, p), sigma = solve(precision))
+```
+
+### Comparison of different methods
+
+```{r}
+### test out different methods
+BHq_result <- BHq(data, q)
+DS_result  <- DS(data, q, num_split)
+GFC_result <- GFC(data, precision, q)
+
+data_save <- list(DS_fdp  = DS_result$DS_fdp,  DS_power  = DS_result$DS_power,
+                  MDS_fdp = DS_result$MDS_fdp, MDS_power = DS_result$MDS_power,
+                  BHq_fdp = BHq_result$fdp, BHq_power = BHq_result$power,
+                  GFC_fdp = GFC_result$fdp, GFC_power = GFC_result$power)
+data_save
+```
+
+By varying $n, p, s$ and $s$ and running 200 independent relications, we are able to reproduce Figure 8 and Figure 9.
+
+We can also repeat the above procedure several times and see the average performance.
+
+```{r, eval = FALSE}
+cl = makeCluster(4)
+registerDoParallel(cl)
+### We set trials = 4 to reduce the computational time.
+trials = 12
+r <- foreach(icount(trials), .combine=cbind) %dopar% {
+  library(DSfdr)
+  library(glmnet)
+  library(MASS)
+  ### We set n = 200, p = 30 to reduce the computational time.
+  n = 200; p = 30; rho = 8; a = -0.6; c = 1.5
+  q = 0.2
+  num_split = 50
+  precision = matrix(0, nrow = p, ncol = p)
+  edges_set = matrix(0, nrow = p, ncol = p)
+  ### Construct banded graph
+  for(i in 1:p){
+   for(j in 1:p){
+     if(i == j){
+       precision[i, j] <- 1
+     }
+     if(i != j & abs(i - j) <= rho){
+       precision[i, j] <- sign(a)*abs(a)^(abs(i - j)/c)
+       edges_set[i, j] <- 1
+     }
+    }
+  }
+  ### Make precision matrix positive definite
+  min_eigen = min(eigen(precision)$values)
+  if(min_eigen < 0){diag(precision) <- diag(precision) + abs(min_eigen) + 0.005}
+  ### Generate data
+  data <- mvrnorm(n, mu = rep(0,p), Sigma = solve(precision))
+  ### Select edges.
+  selected = DS_graph(data, q, num_split)
+  DS_selected = selected$DS_selected_edge
+  MDS_selected = selected$MDS_selected_edge
+  ### Evaluate the performance
+  DS_result = fdp_power_graph(DS_selected, edges_set)
+  MDS_result = fdp_power_graph(MDS_selected, edges_set)
+  c(DS_result$fdp, DS_result$power, MDS_result$fdp, MDS_result$power)
+}
+stopCluster(cl)
+DS_mean_fdp = rowMeans(r)[1]
+MDS_mean_fdp = rowMeans(r)[3]
+DS_mean_power = rowMeans(r)[2]
+MDS_mean_power = rowMeans(r)[4]
+c(DS_mean_fdp, MDS_mean_fdp)
+c(DS_mean_power, MDS_mean_power)
+```
+
+
+
+
+
