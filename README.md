@@ -31,4 +31,4 @@ If you encounter error or would like to provide feedback, please use [Github -> 
 
 ## Reproducibility
 
-We have created a new [github repo]{}  to reproduce all the results in the main text of the paper [False Discovery Rate Control via Data Splitting](https://arxiv.org/pdf/2002.08542.pdf). 
+We have created a new [github repo]({https://github.com/Jeremy690/False-Discovery-Rate-via-Data-Splitting)   to reproduce all the results in the main text of the paper [False Discovery Rate Control via Data Splitting](https://arxiv.org/pdf/2002.08542.pdf). 
